@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
+from core.manager import consulta1
 from core.manager_pickle import ManagerPickle
 
 router = APIRouter()
@@ -17,9 +18,7 @@ async def consulta(request: ConsultaRequest):
     Endpoint para ejecutar la función 'consulta' del archivo businessModel.pkl.
     """
     try:
-        result = ManagerPickle().execute(
-            "businessModel", 
-            "consulta", 
+        result = consulta1(
             request.folios, 
             request.fecha_inicio, 
             request.fecha_fin
