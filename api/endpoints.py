@@ -8,9 +8,9 @@ router = APIRouter()
 
 # Modelo para validar la entrada
 class ConsultaRequest(BaseModel):
-    folios: List[str]
-    fecha_inicio: str
-    fecha_fin: str
+    especialidad_profesional: str
+    cod_diagnostico_principal: str
+    nombre_columna: str    
 
 @router.post("/negocio1/consulta")
 async def consulta(request: ConsultaRequest):
@@ -19,9 +19,9 @@ async def consulta(request: ConsultaRequest):
     """
     try:
         result = consulta1(
-            request.folios, 
-            request.fecha_inicio, 
-            request.fecha_fin
+            request.especialidad_profesional, 
+            request.cod_diagnostico_principal, 
+            request.nombre_columna
         )
         return {"status": "success", "data": result}
     except Exception as e:
