@@ -19,11 +19,11 @@
             "cwd": "${workspaceFolder}",
             "justMyCode": false,
             "env": {                
-                "DB_HOST":"ec2-16-170-246-155.eu-north-1.compute.amazonaws.com",
+                "DB_HOST":"192.168.150.84",
                 "DB_PORT":"5432",
-                "DB_NAME":"suseso_database",
-                "DB_USER":"app_user",
-                "DB_PASS":"susesoDuMundu"                
+                "DB_NAME":"suseso_ml",
+                "DB_USER":"postgres",
+                "DB_PASS":"IDKFA2025",
             }
         }
     ]

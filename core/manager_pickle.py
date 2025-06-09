@@ -1,8 +1,8 @@
 from datetime import datetime
-import pickle
 from pathlib import Path
-import random
 import pandas as pd
+
+from core.services import update_propensity_score_licencias
 
 class BusinessRuleModel:
     def __init__(self, df):
@@ -70,62 +70,25 @@ class ManagerPickle:
     def __init__(self, pickle_path: str = "business_rule_model"):
         self.pickle_path = Path(pickle_path)
 
-    def execute(self, pickle_name, method_name, *args):
+    def ejecuta_regla_negocio1(self, pickle_name, datos_licencias: pd.DataFrame,nombre_columna,cod_diagnostico_principal, especialidad_profesional: str) -> list[dict]:
         pickle_path = f"repo_pickle/{pickle_name}.pkl"        
         self.pickle_path = Path(pickle_path)
-        # Columnas necesarias para la predicción
         columnas = ["id_licencia", "dias_reposo", "fecha_emision", "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal"]
-
-        Datos_licencias = pd.DataFrame({
-            "id_licencia": ["LIC001", "LIC002", "LIC003"],
-            "dias_reposo": [7, 14, 5],
-            "fecha_emision": ["2025-06-01", "2025-06-02", "2025-06-03"],
-            "fecha_inicio_reposo": ["2025-06-02", "2025-06-03", "2025-06-04"],
-            "especialidad_profesional": ["Traumatología", "Cardiología", "Medicina General"],
-            "cod_diagnostico_principal": ["S93.4", "I20.9", "J45"]
-        })
-
-
-        # Seleccionar las columnas relevantes
-        data = Datos_licencias[columnas]
-        
+        data = datos_licencias[columnas]
         try:
-            # Inicializar el modelo con el DataFrame
             modelo_cargado = BusinessRuleModel(data)
-
-            # Definir parámetros para la regla de negocio
             filtro = {
-                "especialidad_profesional": "Traumatología",
-                "cod_diagnostico_principal": "S93"
+                "especialidad_profesional": especialidad_profesional,
+                "cod_diagnostico_principal": cod_diagnostico_principal
             }
-            nombre_columna = "puntuacion_traumatologia"
-            umbral_dias = 7
-
-            # Aplicar la regla de negocio usando predict_prob
-            resultados = modelo_cargado.predict_prob(filtro, nombre_columna, umbral_dias)
-
-            # Imprimir resultados
+            umbral_dias = 30
+            resultados = modelo_cargado.predict_prob(filtro, nombre_columna, umbral_dias)            
             print("DataFrame con la nueva columna de puntuación:\n", resultados)
+            update_propensity_score_licencias(resultados,datos_licencias, nombre_columna, 1) 
 
         except TypeError as e:
             print(f"Error en los parámetros de predict_prob: {e}. Verifica que filter, name y below_limit sean correctos.")
         except Exception as e:
             print(f"Error inesperado: {e}. Verifica los datos o la compatibilidad del modelo.")  
             
-            
-                  
-""""
-        try:
-            with open(pickle_path, 'rb') as file:
-                loaded_object = pickle.load(file)
-        except Exception as e:
-            return f"Error al cargar el archivo pickle: {e}"
-
-        # Verificamos si el método existe en el objeto cargado
-        if hasattr(loaded_object, method_name) and callable(getattr(loaded_object, method_name)):
-            # Ejecutamos el método con los parámetros que se pasan como *args
-            method = getattr(loaded_object, method_name)
-            return method(*args)
-        else:
-            return f"El método '{method_name}' no existe en el objeto cargado."
-"""
+        return resultados.to_dict(orient='records')

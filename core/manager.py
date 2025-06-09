@@ -1,11 +1,24 @@
-from typing import List
 from core.manager_pickle import ManagerPickle
-from core.services import busca_datos_consulta1
+from core.services import query_regla_negocio1
 
 
-def consulta1(folios: List[str], fecha_inicio: str, fecha_fin: str):
-    from_db = busca_datos_consulta1(folios, fecha_inicio, fecha_fin)  
-    result = ManagerPickle().execute(
-        "businessModel", "consulta", from_db.folios_encontrados, from_db.fecha_inicio, from_db.fecha_fin
+def consulta1(
+    fecha_inicio: str,
+    fecha_fin: str,
+    especialidad_profesional: str,
+    cod_diagnostico_principal: str,
+    nombre_columna: str,
+):
+    from_db = query_regla_negocio1(
+        cod_diagnostico_principal, especialidad_profesional, fecha_inicio, fecha_fin
     )
-    return {"status": "success", "data": result}
+    if from_db.empty:
+        return []
+    result = ManagerPickle().ejecuta_regla_negocio1(
+        "business_rule_model",
+        from_db,
+        nombre_columna,
+        cod_diagnostico_principal,
+        especialidad_profesional,
+    )
+    return result

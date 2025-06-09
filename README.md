@@ -20,5 +20,8 @@ SUSESO es un sistema diseñado para gestionar y analizar licencias médicas elec
 - **SQL**: Consultas a través de scripts personalizados.
 - **Bases de datos**: PostgreSQL o DuckDB para almacenamiento y consulta.
 
+Importante activar
+CREATE EXTENSION IF NOT EXISTS unaccent;
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
 
 
