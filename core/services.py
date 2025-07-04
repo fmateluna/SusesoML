@@ -110,3 +110,34 @@ def update_propensity_score_licencias(results: List[dict], datos_licencias: pd.D
         raise ValueError(f"Error inesperado al actualizar ml.propensity_score: {str(e)}")
     finally:
         session.close()
+        
+def query_masivo(
+     fecha_inicio, fecha_fin: str
+) -> pd.DataFrame:
+    fecha_inicio_date, fecha_fin_date = parse_dates(fecha_inicio, fecha_fin)
+
+    query_params = {
+        "fecha_inicio": fecha_inicio_date,
+        "fecha_fin": fecha_fin_date,
+    }
+
+    try:
+        result = execute_query("./sql/masivo.sql", query_params)
+
+        if not result:
+            return pd.DataFrame() 
+        df = pd.DataFrame(result, columns=[
+            "id_licencia",
+            "folio",
+            "dias_reposo",
+            "fecha_emision",
+            "fecha_inicio_reposo",
+            "especialidad_profesional",
+            "cod_diagnostico_principal"
+        ])
+
+        return df
+
+    except Exception as e:
+        print(f"Error ejecutando la consulta busca_datos_consulta1: {e}")
+        raise        
