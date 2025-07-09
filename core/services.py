@@ -1,21 +1,30 @@
 import datetime
-from datetime import date, datetime
 from typing import List, Optional
 from sqlalchemy import text, exc
 from core.database import SessionLocal
 from models.consultas import Consulta1Response
 import pandas as pd
+from collections import defaultdict
+from datetime import datetime, timedelta
+from typing import Tuple
 
+def parse_dates(fecha_inicio: str, fecha_fin: str) -> Tuple[datetime, datetime]:
+    """
+    Convierte las fechas de string a datetime con rango completo de día.
 
-def parse_dates(fecha_inicio: str, fecha_fin: str) -> tuple[date, date]:
-    """Convierte las fechas de string a date, lanzando un error si el formato no es válido."""
+    - inicio: YYYY-MM-DD 00:00:00
+    - fin: YYYY-MM-DD 23:59:59.999999
+
+    Lanza un ValueError si el formato no es válido.
+    """
     try:
-        return (
-            datetime.strptime(fecha_inicio, "%Y-%m-%d").date(),
-            datetime.strptime(fecha_fin, "%Y-%m-%d").date(),
-        )
+        fecha_inicio_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
+        fecha_fin_dt = datetime.strptime(fecha_fin, "%Y-%m-%d") + timedelta(days=1) - timedelta(microseconds=1)
+
+        return fecha_inicio_dt, fecha_fin_dt
     except ValueError:
         raise ValueError("Las fechas deben estar en formato YYYY-MM-DD")
+
 
 
 def read_sql_file(file_path: str) -> str:
@@ -167,3 +176,47 @@ def query_score(fecha_inicio, fecha_fin: str)-> dict:
         for row in result
     ]
     return data
+
+
+
+def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> list[dict]:
+    fecha_inicio_date, fecha_fin_date = parse_dates(fecha_inicio, fecha_fin)
+
+    query_params = {
+        "fecha_inicio": fecha_inicio_date,
+        "fecha_fin": fecha_fin_date,
+    }
+
+    result = execute_query("./sql/propensy_score_licencia.sql", query_params)
+
+    if not result:
+        return []
+
+    agrupados = defaultdict(lambda: {"score": {}})
+
+    for row in result:
+        licencia = row[0]
+        fecha_emision = row[1]
+        rut_medico = row[2]
+        dias_reposo = row[3]
+        cod_diagnostico = row[4]
+        especialidad_medico = row[5]
+        rn = row[6]
+        score = row[7]
+
+        key = (licencia, fecha_emision, rut_medico, dias_reposo, cod_diagnostico, especialidad_medico)
+        
+        agrupados[key]["score"][f"rn_{rn}"] = score
+        if "licencia" not in agrupados[key]:
+            agrupados[key].update({
+                "licencia": licencia,
+                "fecha_emision": fecha_emision,
+                "rut_medico": rut_medico,
+                "dias_reposo": dias_reposo,
+                "cod_diagnostico": cod_diagnostico,
+                "especialidad_medico": especialidad_medico,
+            })
+
+    return list(agrupados.values())
+
+

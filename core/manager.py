@@ -1,5 +1,5 @@
 from core.manager_pickle import ManagerPickle
-from core.services import query_regla_negocio,query_masivo,query_score
+from core.services import query_regla_negocio,query_masivo,query_score,query_score_licencia
 
 execute_scores_map = {}
 
@@ -44,6 +44,10 @@ def propensy_score(fecha_inicio: str, fecha_fin: str):
         execute_scores_map[key] = "run"
     
     from_db = query_score(fecha_inicio, fecha_fin)
+    return from_db
+
+def propensy_score_licencia(fecha_inicio: str, fecha_fin: str):
+    from_db = query_score_licencia(fecha_inicio, fecha_fin)
     return from_db
 
 def makeKeyFromFechas(fecha_inicio: str, fecha_fin: str):

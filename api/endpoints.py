@@ -1,6 +1,6 @@
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from core.manager import consulta_unitaria,masivo,propensy_score
+from core.manager import consulta_unitaria,masivo,propensy_score,propensy_score_licencia
 
 router = APIRouter()
 
@@ -66,6 +66,19 @@ def execute_score(request: MasivoRequest):
         data = propensy_score(request.fecha_inicio,request.fecha_fin)
 
         return {"status": "success", "data": data}
+
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": f"Error inesperado: {str(e)}"}
+    
+@router.post("/score/details")
+def query_score(request: MasivoRequest):
+    """Ejecuta la consulta de resumen de propensity score y devuelve los resultados."""
+    try:
+        data = propensy_score_licencia(request.fecha_inicio,request.fecha_fin)
+
+        return data
 
     except ValueError as e:
         return {"status": "error", "message": str(e)}
