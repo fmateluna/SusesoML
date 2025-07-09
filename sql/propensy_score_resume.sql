@@ -9,7 +9,7 @@ FROM
     INNER JOIN ml.licencia_diagnostico_especialidad lde ON l.id_lic = lde.id_licencia
     INNER JOIN ml.propensity_score ps ON l.id_lic = ps.id_lic
 WHERE 
-    l.fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
+    l.fecha_emision BETWEEN :fecha_inicio AND :fecha_fin  -- Replace with your desired date range
 GROUP BY 
     lde.cod_diagnostico,
     lde.especialidad_medico,
