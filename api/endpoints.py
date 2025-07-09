@@ -1,6 +1,6 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from core.manager import consulta1,masivo
+from core.manager import consulta_unitaria,masivo,propensy_score
 
 router = APIRouter()
 
@@ -25,7 +25,7 @@ async def consulta(request: ConsultaRequest):
     Endpoint para ejecutar la función 'consulta' del archivo businessModel.pkl.
     """
     try:
-        result = consulta1(
+        result = consulta_unitaria(
             request.fecha_inicio,
             request.fecha_fin,
             request.especialidad_profesional,
@@ -39,9 +39,14 @@ async def consulta(request: ConsultaRequest):
         )
         
 @router.post("/masivo")
-async def masiva(request: MasivoRequest):
+async def masiva(request: MasivoRequest, background_tasks: BackgroundTasks):
     """
     Endpoint para ejecutar la función 'consulta' del archivo businessModel.pkl.
+    
+            background_tasks.add_task(
+            ManagerPickle().ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
+        )   
+    
     """
     try:
         result = masivo(
@@ -54,4 +59,15 @@ async def masiva(request: MasivoRequest):
             status_code=500, detail=f"Error ejecutando el pickle: {str(e)}"
         )
         
-        
+@router.post("/score")
+def execute_score(request: MasivoRequest):
+    """Ejecuta la consulta de resumen de propensity score y devuelve los resultados."""
+    try:
+        data = propensy_score(request.fecha_inicio,request.fecha_fin)
+
+        return {"status": "success", "data": data}
+
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": f"Error inesperado: {str(e)}"}

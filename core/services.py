@@ -41,7 +41,7 @@ def execute_query(file_path: str, params: dict):
         session.close()
 
 
-def query_regla_negocio1(
+def query_regla_negocio(
     cod_diagnostico_principal, especialidad_profesional, fecha_inicio, fecha_fin: str
 ) -> pd.DataFrame:
     fecha_inicio_date, fecha_fin_date = parse_dates(fecha_inicio, fecha_fin)
@@ -74,7 +74,7 @@ def query_regla_negocio1(
         print(f"Error ejecutando la consulta busca_datos_consulta1: {e}")
         raise
 
-def update_propensity_score_licencias(results: List[dict], datos_licencias: pd.DataFrame, score_column: str, rn:int) -> None:
+def update_propensity_score_licencias(results: List[dict], score_column: str, rn:int) -> None:
     session = SessionLocal()
     try:
         df = pd.DataFrame(results)
@@ -88,7 +88,7 @@ def update_propensity_score_licencias(results: List[dict], datos_licencias: pd.D
         params_list = [
             {
                 'id_lic': row['id_licencia'],
-                'folio': datos_licencias.loc[datos_licencias['id_licencia'] == row['id_licencia'], 'folio'].values[0],
+                'folio': row['folio'],
                 'rn': rn,
                 'score': row[score_column]
             }
@@ -100,7 +100,7 @@ def update_propensity_score_licencias(results: List[dict], datos_licencias: pd.D
             session.execute(text(upsert_query), params)
 
         session.commit()
-        print(f"Tabla ml.propensity_score actualizada con {len(params_list)} registros.")
+        print(f"Tabla ml.propensity_score = {results}")
 
     except exc.SQLAlchemyError as e:
         session.rollback()
@@ -141,3 +141,29 @@ def query_masivo(
     except Exception as e:
         print(f"Error ejecutando la consulta busca_datos_consulta1: {e}")
         raise        
+    
+    
+def query_score(fecha_inicio, fecha_fin: str)-> dict:
+    fecha_inicio_date, fecha_fin_date = parse_dates(fecha_inicio, fecha_fin)
+
+
+    query_params = {
+        "fecha_inicio": fecha_inicio_date,
+        "fecha_fin": fecha_fin_date,
+    }
+
+    result = execute_query("./sql/propensy_score_resume.sql", query_params)
+
+    if not result:
+        return []
+
+    data = [
+        {
+            "cod_diagnostico": row[0],
+            "especialidad_medico": row[1],
+            "rn": row[2],
+            "cantidad_registros": row[3]
+        }
+        for row in result
+    ]
+    return data
