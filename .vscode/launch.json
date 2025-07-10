@@ -1,7 +1,14 @@
 {
     "version": "0.2.0",
     "configurations": [
-      
+        {
+            "name": "TEST",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/TEST_PKL/test_pkl.py",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,            
+        },
         {
             "name": "MANAGER_SUSESO",
             "type": "python",

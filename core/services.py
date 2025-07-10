@@ -2,7 +2,7 @@ import datetime
 from typing import List, Optional
 from sqlalchemy import text, exc
 from core.database import SessionLocal
-from models.consultas import Consulta1Response
+#from models.consultas import Consulta1Response
 import pandas as pd
 from collections import defaultdict
 from datetime import datetime, timedelta
@@ -109,7 +109,7 @@ def update_propensity_score_licencias(results: List[dict], score_column: str, rn
             session.execute(text(upsert_query), params)
 
         session.commit()
-        print(f"Tabla ml.propensity_score = {results}")
+        print(f"Tabla ml.propensity_score = {params_list[0]}")
 
     except exc.SQLAlchemyError as e:
         session.rollback()
@@ -168,10 +168,9 @@ def query_score(fecha_inicio, fecha_fin: str)-> dict:
 
     data = [
         {
-            "cod_diagnostico": row[0],
-            "especialidad_medico": row[1],
-            "rn": row[2],
-            "cantidad_registros": row[3]
+            "fecha_emision": row[0],
+            "rn": row[1],
+            "cantidad_registros": row[2]
         }
         for row in result
     ]

@@ -1,7 +1,3 @@
-import pickle
-import random
-from datetime import datetime
-
 import pandas as pd
 
 class BusinessModel:
@@ -34,7 +30,6 @@ class BusinessModel:
         condiciones_especialidad = df['especialidad_profesional'].isin(filtro['especialidad_profesional'])
         condiciones_diagnostico = df['cod_diagnostico_principal'].astype(str).str.startswith(filtro['cod_diagnostico_principal'])
         condiciones_dias = df['dias_reposo'] >= limite
-
         df.loc[condiciones_especialidad & condiciones_diagnostico & condiciones_dias, nombre_columna] = 1
         return df
 
@@ -45,26 +40,3 @@ class BusinessModel:
         df = self.preprocess(df)
         df = self.apply_business_rule(df)
         return df
-
-
-# Crear una instancia del objeto
-business_model = BusinessModel()
-
-# Guardamos el objeto completo en un archivo pickle
-with open('businessModel.pkl', 'wb') as file:
-    pickle.dump(business_model, file)
-
-# Cargar el pickle y ejecutar el método consulta del objeto cargado
-with open('businessModel.pkl', 'rb') as file:
-    loaded_object = pickle.load(file)
-
-# Parámetros de entrada
-folios = ["14504228-3", "13304228-3", "11511228-4"]
-fecha_inicio = "2015-01-01"
-fecha_fin = "2020-12-31"
-
-# Ejecutar el método consulta del objeto cargado
-result = loaded_object.consulta(folios, fecha_inicio, fecha_fin)
-
-# Imprimir el resultado
-print(result)
