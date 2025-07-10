@@ -61,11 +61,76 @@ codigos_cardiologia = [
 
 Datos_licencias = pd.DataFrame({
     "id_licencia": [f"LIC{str(i).zfill(3)}" for i in range(1, 31)],
-    "dias_reposo": [random.randint(5, 20) for _ in range(30)],
+    "dias_reposo": [random.randint(28, 30) for _ in range(30)],
     "fecha_emision": pd.date_range(start="2025-06-01", periods=30).strftime("%Y-%m-%d"),
     "fecha_inicio_reposo": pd.date_range(start="2025-06-02", periods=30).strftime("%Y-%m-%d"),
     "especialidad_profesional": ["Cardiología"] * 30,
     "cod_diagnostico_principal": [random.choice(codigos_cardiologia) for _ in range(30)]
+})
+
+# Datos ridículos para licencias
+Datos_licencias = pd.DataFrame({
+    "id_licencia": [f"LIC_RID{i:03d}" for i in range(1, 11)],
+    "dias_reposo": [
+        1000,  # Absurdo: más de 2 años de reposo
+        -5,    # Negativo: imposible
+        365,   # Límite exacto del filtro
+        0,     # Sin reposo
+        500,   # Más de un año, absurdo
+        30,    # Valor en el límite
+        9999,  # Extremadamente absurdo
+        1,     # Muy corto
+        200,   # Alto pero dentro del límite
+        400    # Excede el límite del preprocess
+    ],
+    "fecha_emision": [
+        "2025-06-01",  # Normal
+        "1800-01-01",  # Fecha histórica, inválida
+        "2025-12-31",  # Normal
+        "3000-01-01",  # Fecha futura absurda
+        "2025-06-01",  # Normal
+        "2025-06-02",  # Normal
+        "invalid_date", # Fecha inválida
+        "2025-06-03",  # Normal
+        "2025-06-04",  # Normal
+        "2026-01-01"   # Futura pero válida
+    ],
+    "fecha_inicio_reposo": [
+        "2025-06-02",  # Normal
+        "1800-01-02",  # Fecha histórica
+        "2025-12-31",  # Normal
+        "3000-01-02",  # Fecha futura absurda
+        "2025-06-02",  # Normal
+        "2025-06-03",  # Normal
+        "2025-06-01",  # Normal (aunque la emisión es inválida)
+        "2025-06-04",  # Normal
+        "2025-06-05",  # Normal
+        "2026-01-02"   # Futura pero válida
+    ],
+    "especialidad_profesional": [
+        "Cardiología",  # Válida
+        "Astrología",   # Inválida, ridícula
+        "Cardiologia ", # Válida (coincide con el filtro)
+        "Cardiologo",   # Válida
+        "Pediatría",    # No coincide
+        "Cardiología",  # Válida
+        "",             # Vacía, será tratada como ""
+        "Cardiología",  # Válida
+        "Ortopedia",    # No coincide
+        "Cardiología"   # Válida
+    ],
+    "cod_diagnostico_principal": [
+        "F32.0",    # Depresión leve (coincide con 'F')
+        "Z99.9",    # Código no relacionado con cardiología
+        "F41.1",    # Ansiedad (coincide con 'F')
+        "XXX",      # Código inválido
+        "I10",      # Hipertensión (no coincide con 'F')
+        "F20.0",    # Esquizofrenia (coincide con 'F')
+        "G47.0",    # Insomnio (no coincide con 'F')
+        "F99",      # Trastorno mental no especificado (coincide con 'F')
+        "I21.9",    # Infarto (no coincide con 'F')
+        "F45.2"     # Trastorno hipocondríaco (coincide con 'F')
+    ]
 })
 
 # Columnas necesarias para la predicción
@@ -85,7 +150,7 @@ hyperparameters = {
 }
 
 # Opción 1: Crear una nueva instancia de BusinessModel con los hiperparámetros
-modelo = "./TEST_PKL/business_model_rn_1.pkl"
+modelo = "./standalone/business_model_rn_2.pkl"
 try:
     # Inicializar el modelo con los hiperparámetros
     with open(modelo, "rb") as archivo:

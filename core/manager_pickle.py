@@ -8,14 +8,6 @@ import threading
 from core.services import update_propensity_score_licencias
 from models import BusinessModel
 
-hyperparameters = {
-    'filter': {
-        'especialidad_profesional': ['Cardiología', 'Cardiologia ', 'Cardiologo'],
-        'cod_diagnostico_principal': 'F'
-    },
-    'name': 'puntuacion_Cardiología',
-    'below_limit': 7
-}
 
 class ManagerPickle:
     def __init__(self):
@@ -41,29 +33,12 @@ class ManagerPickle:
         
         columnas = ["id_licencia", "dias_reposo", "fecha_emision", "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal"]
         data = datos_licencias[columnas]
-        below_limit=30
+
         score_name =  f'propensity_score_rn_{rn}'
-        
-        if rn==1:
-            below_limit = 30
-        
-        if rn==2:
-            below_limit = 30
-        
 
         try:
             # Convertir la serie a diccionario para mayor robustez
             params_dict = parametros_licencia.to_dict()
-            hyperparameters = {
-                'filter': {
-                    'especialidad_profesional': [params_dict["especialidad_profesional"]], 
-                    'cod_diagnostico_principal': params_dict["cod_diagnostico_principal"]
-                },
-                'name': score_name,
-                'below_limit': below_limit
-            }
-
-            #modelo_cargado = BusinessModel(hyperparameters)
             
             with open(pickle_path, "rb") as modelo:
                 modelo_cargado = pickle.load(modelo)
