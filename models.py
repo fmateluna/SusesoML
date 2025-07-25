@@ -5,6 +5,7 @@ class BusinessModel:
         """
         Inicializa el modelo con los hiperparámetros.
         """
+        BusinessModel.__module__ = '__main__'
         self.hyperparameters = hyperparameters
 
     def preprocess(self, df):
@@ -30,6 +31,7 @@ class BusinessModel:
         condiciones_especialidad = df['especialidad_profesional'].isin(filtro['especialidad_profesional'])
         condiciones_diagnostico = df['cod_diagnostico_principal'].astype(str).str.startswith(filtro['cod_diagnostico_principal'])
         condiciones_dias = df['dias_reposo'] >= limite
+
         df.loc[condiciones_especialidad & condiciones_diagnostico & condiciones_dias, nombre_columna] = 1
         return df
 

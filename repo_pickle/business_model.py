@@ -5,6 +5,7 @@ class BusinessModel:
         """
         Inicializa el modelo con los hiperparámetros.
         """
+        BusinessModel.__module__ = '__main__'
         self.hyperparameters = hyperparameters
 
     def preprocess(self, df):

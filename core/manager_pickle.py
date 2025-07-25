@@ -1,4 +1,5 @@
 from datetime import datetime
+import sys
 import dill as pickle
 from pathlib import Path
 from typing import Hashable
@@ -6,8 +7,51 @@ import pandas as pd
 import asyncio
 import threading
 from core.services import update_propensity_score_licencias
-from models import BusinessModel
 
+class BusinessModel:
+    def __init__(self, hyperparameters):
+        """
+        Inicializa el modelo con los hiperparámetros.
+        """
+        self.hyperparameters = hyperparameters
+
+    def preprocess(self, df):
+        """
+        Limita días de reposo y convierte fechas.
+        """
+        df = df[df['dias_reposo'] <= 365]
+        df['fecha_emision'] = pd.to_datetime(df['fecha_emision'], errors='coerce')
+        return df
+
+    def apply_business_rule(self, df):
+        """
+        Aplica la regla de negocio usando condiciones sobre especialidad, diagnóstico y días de reposo.
+        """
+        filtro = self.hyperparameters['filter']
+        nombre_columna = self.hyperparameters['name']
+        limite = self.hyperparameters['below_limit']
+
+        df = df.copy()
+        df[nombre_columna] = 0
+        df['especialidad_profesional'] = df['especialidad_profesional'].fillna("")
+
+        condiciones_especialidad = df['especialidad_profesional'].isin(filtro['especialidad_profesional'])
+        condiciones_diagnostico = df['cod_diagnostico_principal'].astype(str).str.startswith(filtro['cod_diagnostico_principal'])
+        condiciones_dias = df['dias_reposo'] >= limite
+
+        df.loc[condiciones_especialidad & condiciones_diagnostico & condiciones_dias, nombre_columna] = 1
+        return df
+
+    def predict_prob(self, df):
+        """
+        Aplica preprocesamiento y luego la regla de negocio.
+        """
+        df = self.preprocess(df)
+        df = self.apply_business_rule(df)
+        return df
+
+
+sys.modules['__main__'].BusinessModel = BusinessModel
 
 class ManagerPickle:
     def __init__(self):
@@ -34,7 +78,7 @@ class ManagerPickle:
         columnas = ["id_licencia", "dias_reposo", "fecha_emision", "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal"]
         data = datos_licencias[columnas]
 
-        score_name =  f'propensity_score_rn_{rn}'
+        score_name = f'propensity_score_rn_{rn}'
 
         try:
             # Convertir la serie a diccionario para mayor robustez
@@ -61,21 +105,10 @@ class ManagerPickle:
         except Exception as e:
             print(f"Error inesperado: {e}. Verifica los datos o la compatibilidad del modelo.")
             return []
-        
+
     def ejecuta_masivo(self, datos_licencias: pd.DataFrame, fecha_inicio: str, fecha_fin: str) -> dict:
-        """
-        Inicia la ejecución masiva de reglas de negocio de forma asíncrona.
-
-        Args:
-            datos_licencias (pd.DataFrame): DataFrame con los datos de licencias.
-            fecha_inicio (str): Fecha de inicio para la clave de solicitud.
-            fecha_fin (str): Fecha de fin para la clave de solicitud.
-
-        Returns:
-            dict: Estado de la ejecución masiva.
-        """
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
-        if len(self.result_map)>0 and self.result_map[request_key]:
+        if len(self.result_map) > 0 and self.result_map.get(request_key):
             return self.result_map[request_key]
         
         self.result_map[request_key] = {
@@ -83,12 +116,6 @@ class ManagerPickle:
             'rules_executed': [],
             'data': []
         }
-        """
-        self._active_tasks[request_key] = asyncio.create_task(
-            self.ini_ejecuta_masivo(datos_licencias, fecha_inicio, fecha_fin)
-        )
-        """
-        
         
         def run_background():
             asyncio.run(self.ini_ejecuta_masivo(datos_licencias, fecha_inicio, fecha_fin))
@@ -104,27 +131,14 @@ class ManagerPickle:
         }
 
     async def ini_ejecuta_masivo(self, datos_licencias: pd.DataFrame, fecha_inicio: str, fecha_fin: str) -> dict:
-        """
-        Ejecuta las reglas de negocio de forma masiva de manera asíncrona para ambos modelos, iterando por cada fila.
-
-        Args:
-            datos_licencias (pd.DataFrame): DataFrame con los datos de licencias.
-            fecha_inicio (str): Fecha de inicio para la clave de solicitud.
-            fecha_fin (str): Fecha de fin para la clave de solicitud.
-
-        Returns:
-            dict: Resultados de la ejecución masiva.
-        """
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
-        columnas = ["id_licencia", "dias_reposo", "fecha_emision", "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal","folio"]
+        columnas = ["id_licencia", "dias_reposo", "fecha_emision", "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal", "folio"]
         data = datos_licencias[columnas]
         results = []
 
-        # Iterar sobre cada fila de datos_licencias
         for index, row in datos_licencias.iterrows():
             for rn, model_name in enumerate(self.model_names, start=1):
                 try:
-                    # Crear un DataFrame con una sola fila para la regla
                     single_row_df = datos_licencias.loc[[index], columnas]
                     result = self.ejecuta_regla_negocio(
                         model_name,
@@ -159,15 +173,5 @@ class ManagerPickle:
         return self.result_map[request_key]
 
     def get_results_by_request(self, fecha_inicio: str, fecha_fin: str) -> dict:
-        """
-        Consulta los resultados almacenados para un request específico.
-
-        Args:
-            fecha_inicio (str): Fecha de inicio para la clave de solicitud.
-            fecha_fin (str): Fecha de fin para la clave de solicitud.
-
-        Returns:
-            dict: Resultados almacenados o estado 'not_found' si no existen.
-        """
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
         return self.result_map.get(request_key, {'status': 'not_found', 'rules_executed': [], 'data': []})
