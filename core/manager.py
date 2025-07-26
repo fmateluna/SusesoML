@@ -1,50 +1,27 @@
 from core.manager_pickle import ManagerPickle
-from core.services import query_regla_negocio,query_masivo,query_score,query_score_licencia
+from core.services import query_masivo,query_score_licencia
 
 execute_scores_map = {}
-
-def consulta_unitaria(
-    fecha_inicio: str,
-    fecha_fin: str,
-    especialidad_profesional: str,
-    cod_diagnostico_principal: str,
-    nombre_columna: str,
-):
-    from_db = query_regla_negocio(
-        cod_diagnostico_principal, especialidad_profesional, fecha_inicio, fecha_fin
-    )
-    #Ojo procesar y luego listar scored
-    if from_db.empty:
-        return []
-    result = ManagerPickle().ejecuta_regla_negocio(
-        "business_rule_model",
-        from_db,
-        nombre_columna,
-        cod_diagnostico_principal,
-        especialidad_profesional,
-    )
-    return result
-
+managerPickle =  ManagerPickle()
 
 def masivo(fecha_inicio: str, fecha_fin: str):
     from_db = query_masivo(fecha_inicio, fecha_fin)
     if from_db.empty:
         return []
-    result = ManagerPickle().ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
+    result = managerPickle.ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
     return result
 
 def propensy_score(fecha_inicio: str, fecha_fin: str):
     key = makeKeyFromFechas(fecha_inicio, fecha_fin)
-    
+
+    # Consulta si l ejecucion masiva ya se realizo por los parametros de fechas del request
     if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:
         from_db = query_masivo(fecha_inicio, fecha_fin)
         if from_db.empty:
             return []
-        ManagerPickle().ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
         execute_scores_map[key] = "run"
-    
-    from_db = query_score(fecha_inicio, fecha_fin)
-    return from_db
+        return managerPickle.ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
+    return managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
 
 def propensy_score_licencia(fecha_inicio: str, fecha_fin: str):
     from_db = query_score_licencia(fecha_inicio, fecha_fin)

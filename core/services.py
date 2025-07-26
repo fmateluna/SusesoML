@@ -2,11 +2,14 @@ import datetime
 from typing import List, Optional
 from sqlalchemy import text, exc
 from core.database import SessionLocal
-#from models.consultas import Consulta1Response
 import pandas as pd
 from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Tuple
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
 def parse_dates(fecha_inicio: str, fecha_fin: str) -> Tuple[datetime, datetime]:
     """
@@ -83,10 +86,15 @@ def query_regla_negocio(
         print(f"Error ejecutando la consulta busca_datos_consulta1: {e}")
         raise
 
-def update_propensity_score_licencias(results: List[dict], score_column: str, rn:int) -> None:
+def update_propensity_score_licencias(results: pd.DataFrame, score_column: str, rn: int) -> None:
+    """
+    Actualiza la tabla ml.propensity_score con un lote de resultados.
+    """
     session = SessionLocal()
     try:
-        df = pd.DataFrame(results)
+        if results.empty or score_column not in results.columns:
+            logger.error(f"Datos vacíos o columna {score_column} no encontrada")
+            return
 
         upsert_query = """
         INSERT INTO ml.propensity_score (id_lic, folio, rn, score)
@@ -101,21 +109,19 @@ def update_propensity_score_licencias(results: List[dict], score_column: str, rn
                 'rn': rn,
                 'score': row[score_column]
             }
-            for _, row in df.iterrows()
+            for _, row in results.iterrows()
         ]
-
-        # Ejecutar el upsert en una transacción
-        for params in params_list:
-            session.execute(text(upsert_query), params)
-
+        logger.info(f"Insertando {len(params_list)} registros en ml.propensity_score")
+        session.execute(text(upsert_query), params_list)
         session.commit()
-        print(f"Tabla ml.propensity_score = {params_list[0]}")
 
-    except exc.SQLAlchemyError as e:
+    except SQLAlchemyError as e:
         session.rollback()
+        logger.error(f"Error al actualizar ml.propensity_score: {str(e)}")
         raise ValueError(f"Error al actualizar ml.propensity_score: {str(e)}")
     except Exception as e:
         session.rollback()
+        logger.error(f"Error inesperado al actualizar ml.propensity_score: {str(e)}")
         raise ValueError(f"Error inesperado al actualizar ml.propensity_score: {str(e)}")
     finally:
         session.close()
