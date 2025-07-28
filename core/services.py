@@ -111,11 +111,12 @@ def update_propensity_score_licencias(results: pd.DataFrame, score_column: str, 
             }
             for _, row in results.iterrows()
         ]
-        logger.info(f"Insertando {len(params_list)} registros en ml.propensity_score")
+        #logger.info(f"Insertando {len(params_list)} registros en ml.propensity_score")
         session.execute(text(upsert_query), params_list)
         session.commit()
-
-    except SQLAlchemyError as e:
+        successful_ids = [row['id_licencia'] for _, row in results.iterrows()]
+        logger.info(f"Registros insertados exitosamente: {successful_ids}")
+    except SQLAlchemyError as e: # pyright: ignore[reportUndefinedVariable]
         session.rollback()
         logger.error(f"Error al actualizar ml.propensity_score: {str(e)}")
         raise ValueError(f"Error al actualizar ml.propensity_score: {str(e)}")

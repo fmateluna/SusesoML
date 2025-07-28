@@ -6,7 +6,7 @@ import pandas as pd
 import asyncio
 import threading
 import logging
-from core.services import  update_propensity_score_licencias
+from core.services import  query_masivo, update_propensity_score_licencias
 import copy
 import threading
 
@@ -131,7 +131,11 @@ class ManagerPickle:
             else:
                 return {'status': 'not_found', 'rules_executed': []}
 
-    def ejecuta_masivo(self, datos_licencias: pd.DataFrame, fecha_inicio: str, fecha_fin: str) -> dict:
+    def ejecuta_masivo(self, fecha_inicio: str, fecha_fin: str) -> dict:
+        
+    
+   
+        
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
         
         with result_map_lock:
@@ -147,6 +151,8 @@ class ManagerPickle:
             response_copy_pal_front = copy.deepcopy(result_map[request_key])
         
         def run_background():
+            result_map[request_key]['status']="extract_data"
+            datos_licencias = query_masivo(fecha_inicio, fecha_fin)            
             try:
                 asyncio.run(self.ini_ejecuta_masivo(datos_licencias, fecha_inicio, fecha_fin))
             except Exception as e:
@@ -204,6 +210,7 @@ class ManagerPickle:
                         count_rn_exe[model_name]=count_rn_exe[model_name]+1
 
                         current_state['status']='execute'
+                        current_state['total']=len(datos_licencias)
                         current_state[model_name]= count_rn_exe[model_name] 
                         result_map[request_key] = current_state
                         

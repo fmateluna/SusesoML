@@ -15,12 +15,9 @@ def propensy_score(fecha_inicio: str, fecha_fin: str):
     key = makeKeyFromFechas(fecha_inicio, fecha_fin)
 
     # Consulta si l ejecucion masiva ya se realizo por los parametros de fechas del request
-    if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:
-        from_db = query_masivo(fecha_inicio, fecha_fin)
-        if from_db.empty:
-            return []
+    if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:        
         execute_scores_map[key] = "run"
-        return managerPickle.ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
+        return managerPickle.ejecuta_masivo( fecha_inicio, fecha_fin)
     return managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
 
 def propensy_score_licencia(fecha_inicio: str, fecha_fin: str):
