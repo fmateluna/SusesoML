@@ -129,7 +129,7 @@ class ManagerPickle:
                 # Retorna una copia inmutable!!!!!
                 return copy.deepcopy(result_map[request_key])
             else:
-                return {'status': 'not_found', 'rules_executed': [], 'data': []}
+                return {'status': 'not_found', 'rules_executed': []}
 
     def ejecuta_masivo(self, datos_licencias: pd.DataFrame, fecha_inicio: str, fecha_fin: str) -> dict:
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
@@ -141,8 +141,7 @@ class ManagerPickle:
             # Inicializa nuevo estado
             result_map[request_key] = {
                 'status': 'starting',
-                'rules_executed': [],
-                'data': []
+                'rules_executed': 0
             }
             # Crea copia para la respuesta
             response_copy_pal_front = copy.deepcopy(result_map[request_key])
@@ -155,8 +154,8 @@ class ManagerPickle:
                 with result_map_lock:
                     result_map[request_key] = {
                         'status': 'error',
-                        'rules_executed': [],
-                        'data': [],
+                        'rules_executed': 0,
+                        # 'data': [],
                         'reason': str(e)
                     }
                     
@@ -179,10 +178,10 @@ class ManagerPickle:
         try:
             if not all(col in datos_licencias.columns for col in columnas):
                 raise ValueError(f"Faltan columnas: {set(columnas) - set(datos_licencias.columns)}")
-
-            data = datos_licencias[columnas]
+            
+            count_rn_exe = {}
+            current_state = {}
             for index, licencia in datos_licencias.iterrows():
-                
                 for rn, model_name in enumerate(self.model_names, start=1):
                     try:
                         single_row_df = datos_licencias.loc[[index], columnas]
@@ -192,34 +191,26 @@ class ManagerPickle:
                         
                         if not result.empty:
                             batch_results.append((result, score_name, rn))
-                        results.append({
-                            'regla': f"ejecuta_regla_negocio_{model_name}_id_{licencia['id_licencia']}",
-                            'status': 'executed',
-                            'data': result.to_dict(orient='records')
-                        })
-                        
+                                       
                         # Guardar en la base de datos cada block_size cálculos
                         if len(batch_results) >= block_size:
                             logger.info(f"Guardando bloque de {len(batch_results)} resultados")
                             for batch_result, batch_score_name, batch_rn in batch_results:
                                 update_propensity_score_licencias(batch_result, batch_score_name, batch_rn)
                             batch_results = []  # Limpiar el lote
+                            
+                        if model_name not in count_rn_exe:
+                            count_rn_exe[model_name] = 0
+                        count_rn_exe[model_name]=count_rn_exe[model_name]+1
 
-                        current_state = {
-                            'status': 'still working',
-                            'rules_executed': copy.deepcopy(results),  # Copia de los resultados
-                            'data': data.iloc[:index+1].to_dict(orient='records')  # Solo datos procesados
-                        }
+                        current_state['status']='execute'
+                        current_state[model_name]= count_rn_exe[model_name] 
                         result_map[request_key] = current_state
                         
                         
                     except Exception as e:
                         logger.error(f"Error en registro {index}, modelo {model_name}: {str(e)}")
-                        results.append({
-                            'regla': f"ejecuta_regla_negocio_{model_name}_id_{licencia['id_licencia']}",
-                            'status': 'error',
-                            'reason': str(e)
-                        })
+
 
             # Guardar cualquier resultado restante
             if batch_results:
@@ -230,18 +221,13 @@ class ManagerPickle:
             with result_map_lock:
                 result_map[request_key] = {
                     'status': 'completed' if results else 'no_rules_found',
-                    'rules_executed': copy.deepcopy(results),  # Copia final
-                    'data': data.to_dict(orient='records')
+                    'rules_executed': 0
                 }
         except Exception as e:
             logger.error(f"Error en ini_ejecuta_masivo: {str(e)}")
             with result_map_lock:
-                result_map[request_key] = {
-                    'status': 'error',
-                    'rules_executed': copy.deepcopy(results),  
-                    'data': data.to_dict(orient='records') if 'data' in locals() else [],
-                    'reason': str(e)
-                }
+                result_map[request_key]['status']='error'
+                result_map[request_key]['reason']=str(e)
         finally:
             if request_key in self._active_tasks:
                 del self._active_tasks[request_key]
@@ -250,4 +236,4 @@ class ManagerPickle:
 
     def get_results_by_request(self, fecha_inicio: str, fecha_fin: str) -> dict:
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
-        return result_map.get(request_key, {'status': 'not_found', 'rules_executed': [], 'data': []})
+        return result_map.get(request_key, {'status': 'not_found', 'rules_executed': []})
