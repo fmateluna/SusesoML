@@ -226,10 +226,7 @@ class ManagerPickle:
                     update_propensity_score_licencias(batch_result, batch_score_name, batch_rn)
 
             with result_map_lock:
-                result_map[request_key] = {
-                    'status': 'completed' if results else 'no_rules_found',
-                    'rules_executed': 0
-                }
+                result_map[request_key]['status']='completed'
         except Exception as e:
             logger.error(f"Error en ini_ejecuta_masivo: {str(e)}")
             with result_map_lock:
