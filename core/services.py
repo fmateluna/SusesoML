@@ -1,12 +1,18 @@
 import datetime
-from typing import List, Optional
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text, exc
 from core.database import SessionLocal
 import pandas as pd
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import Tuple
+from typing import List, Tuple
 import logging
+from collections import defaultdict
+from datetime import datetime
+import time
+
+from sqlalchemy import text
+from datetime import datetime
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -86,7 +92,7 @@ def query_regla_negocio(
         print(f"Error ejecutando la consulta busca_datos_consulta1: {e}")
         raise
 
-def update_propensity_score_licencias(results: pd.DataFrame, score_column: str, rn: int) -> None:
+def update_propensity_score_licencias(results: pd.DataFrame, score_column: str, rn: int):
     """
     Actualiza la tabla ml.propensity_score con un lote de resultados.
     """
@@ -116,7 +122,7 @@ def update_propensity_score_licencias(results: pd.DataFrame, score_column: str, 
         session.commit()
         successful_ids = [row['id_licencia'] for _, row in results.iterrows()]
         logger.info(f"Registros insertados exitosamente: {successful_ids}")
-    except SQLAlchemyError as e: # pyright: ignore[reportUndefinedVariable]
+    except SQLAlchemyError as e: 
         session.rollback()
         logger.error(f"Error al actualizar ml.propensity_score: {str(e)}")
         raise ValueError(f"Error al actualizar ml.propensity_score: {str(e)}")
@@ -226,3 +232,108 @@ def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> list[dict]:
     return list(agrupados.values())
 
 
+
+
+def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> list:
+    """Execute the SQL query and return results."""
+    try:
+        fecha_date = datetime.strptime(fecha, "%Y-%m-%d").date()
+    except ValueError:
+        raise ValueError("El formato de la fecha debe ser YYYY-MM-DD")
+
+    query_params = {
+        "fecha_inicio": fecha_date,
+        "windows_days": dias,
+    }
+
+    # Simulate long-running query (replace with actual execute_query call)
+    start_time = time.time()
+    result = execute_query("./sql/datos_umbral.sql", query_params)
+    execution_time = time.time() - start_time
+
+    return result, execution_time
+
+
+def manage_umbral_status(
+    request_hash: str,
+    fecha: str,
+    dias: int,
+    entidad: str,
+    status: str,
+    execution_time: float = None,
+    message: str = None
+) -> dict:
+    """
+    Inserta o actualiza el estado en la tabla ml.umbral_data y devuelve el registro.
+    """
+    session = SessionLocal()
+    try:
+        upsert_query = """
+        INSERT INTO ml.umbral_data (hash, fecha, dias, entidad, estado, created_at)
+        VALUES (:hash, :fecha, :dias, :entidad, :estado, :created_at)
+        ON CONFLICT (hash) DO UPDATE
+        SET estado = EXCLUDED.estado,
+            created_at = EXCLUDED.created_at
+        RETURNING hash, fecha, dias, entidad, estado, created_at
+        """
+        params = {
+            "hash": request_hash,
+            "fecha": fecha,
+            "dias": dias,
+            "entidad": entidad,
+            "estado": status,
+            "created_at": datetime.now()
+        }
+        result = session.execute(text(upsert_query), params).fetchone()
+        session.commit()
+
+        if not result:
+            raise ValueError("No se pudo registrar o actualizar el estado en ml.umbral_data")
+
+        # Construir el diccionario de respuesta
+        status_data = {
+            "status": result.estado,
+            "request_hash": result.hash,
+            "fecha": result.fecha,
+            "dias": result.dias,
+            "entidad": result.entidad,
+            "created_at": result.created_at.isoformat()
+        }
+
+        return status_data
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Error al gestionar estado en ml.umbral_data: {str(e)}")
+        raise ValueError(f"Error al gestionar estado: {str(e)}")
+    finally:
+        session.close()
+
+def get_umbral_status(request_hash: str) -> dict:
+    """
+    Consulta el estado de un request_hash en la tabla ml.umbral_data.
+    """
+    session = SessionLocal()
+    try:
+        query = """
+        SELECT hash, fecha, dias, entidad, estado, created_at
+        FROM ml.umbral_data
+        WHERE hash = :hash
+        """
+        result = session.execute(text(query), {"hash": request_hash}).fetchone()
+        if not result:
+            return {"status": "not_found", "message": "Request hash not found"}
+
+        return {
+            "status": result.estado,
+            "request_hash": result.hash,
+            "fecha": result.fecha,
+            "dias": result.dias,
+            "entidad": result.entidad,
+            "created_at": result.created_at.isoformat()
+        }
+    except SQLAlchemyError as e:
+        logger.error(f"Error al consultar estado en ml.umbral_data: {str(e)}")
+        raise ValueError(f"Error al consultar estado: {str(e)}")
+    finally:
+        session.close()

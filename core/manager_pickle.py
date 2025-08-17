@@ -1,4 +1,3 @@
-from datetime import datetime
 import sys
 import dill as pickle
 from pathlib import Path
@@ -8,7 +7,6 @@ import threading
 import logging
 from core.services import  query_masivo, update_propensity_score_licencias
 import copy
-import threading
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -177,7 +175,6 @@ class ManagerPickle:
         """
         request_key = self._generate_request_key(fecha_inicio, fecha_fin)
         columnas = ["id_licencia", "dias_reposo", "fecha_emision", "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal", "folio"]
-        results = []
         batch_results = []
         block_size = 100  # Guardar cada 100 cálculos
 
