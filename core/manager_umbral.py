@@ -144,7 +144,7 @@ def count_licenses_by_diagnosis(df, window_days=30, cods_list=None, entity_col='
     df.drop(columns=['diagn_letter'], inplace=True)
     return df
 
-def process_umbral_data(df, entity_col='rut_medico', window_days=60):
+def process_umbral_data(df, entity_col='rut_medico', window_days=30):
     """
     Procesa el DataFrame aplicando filtros y calculando métricas de umbral.
 
@@ -179,3 +179,5 @@ def process_umbral_data(df, entity_col='rut_medico', window_days=60):
     except Exception as e:
         logger.error(f"Error procesando datos de umbral: {str(e)}")
         raise
+
+

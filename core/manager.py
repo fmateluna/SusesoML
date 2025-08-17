@@ -1,6 +1,7 @@
 
-from core.manager_pickle import ManagerPickle
+from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
+from core.repo_umbrales.execute_umbrales import csv_to_results_umbrales
 from core.services import query_masivo,query_score_licencia,query_data_umbral
 import logging
 import os
@@ -105,11 +106,23 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 fecha=fecha,
                 dias=dias,
                 entidad=columna_entidad,
-                status="still_working"
+                status="create_csv_data"
             )
         )
-        output_path = f"./umbrales_csv/{request_hash}/data.csv"
-        save_to_csv(processed_df, output_path)
+        data_csv_path = f"./umbrales_csv/{request_hash}/data.csv"
+        save_to_csv(processed_df, data_csv_path)
+
+        status_queue.put(
+            manage_umbral_status(
+                request_hash=request_hash,
+                fecha=fecha,
+                dias=dias,
+                entidad=columna_entidad,
+                status="execute_csv_results"
+            )
+        )
+        result_csv_path = f"./umbrales_csv/{request_hash}/results.csv"
+        csv_to_results_umbrales(data_csv_path, result_csv_path)        
 
         # Registrar estado final
         status_queue.put(
