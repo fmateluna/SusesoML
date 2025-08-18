@@ -168,11 +168,11 @@ def process_umbral_data(df, entity_col='rut_medico', window_days=30):
         df['frecuencia_medico_15D'] = count_licenses_by_entity(df, entity_col=entity_col, window_days=15)
         df['frecuencia_medico_7D'] = count_licenses_by_entity(df, entity_col=entity_col, window_days=7)
 
-        # Calcular frecuencias por diagnóstico
-        df = count_licenses_by_diagnosis(df, window_days=window_days, cods_list=['J', 'F', 'M'], entity_col=entity_col)
+        # Los windows_days de cada columnas son fijos
+        df = count_licenses_by_diagnosis(df, window_days=30, cods_list=['J', 'F', 'M'], entity_col=entity_col)
 
         # Calcular licencias remotas y presenciales
-        df = count_licenses_by_otorgamiento(df, entity_col=entity_col, window_days=window_days)
+        df = count_licenses_by_otorgamiento(df, entity_col=entity_col, window_days=30)
 
         return df
 
