@@ -53,7 +53,7 @@ def generate_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut
         "rut_trabajador",
         "marca_otorgamiento"
     ])
-    processed_df = process_umbral_data(df, entity_col=columna_entidad, window_days=dias)
+    processed_df = process_umbral_data(df, entity_col=columna_entidad)
     return processed_df, execution_time
 
 def makeKeyFromFechas(fecha_inicio: str, fecha_fin: str):
@@ -109,7 +109,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 status="create_csv_data"
             )
         )
-        data_csv_path = f"./umbrales_csv/{request_hash}/data.csv"
+        data_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/data.csv"
         save_to_csv(processed_df, data_csv_path)
 
         status_queue.put(
@@ -121,7 +121,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 status="execute_csv_results"
             )
         )
-        result_csv_path = f"./umbrales_csv/{request_hash}/results.csv"
+        result_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/results.csv"
         csv_to_results_umbrales(data_csv_path, result_csv_path)        
 
         # Registrar estado final

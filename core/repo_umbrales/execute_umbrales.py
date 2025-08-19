@@ -64,7 +64,7 @@ def apply_model(df, config):
         logger.error(f"Error al aplicar modelo {model_path}: {str(e)}")
         return df  # Retorna df sin cambios en caso de error
 
-def process_umbral_data(df, entity_col='rut_medico', window_days=60, base_path=None):
+def process_umbral_data(df, entity_col='rut_medico', base_path=None):
     try:
         if base_path is None:
             # Obtener el directorio del archivo Python actual de manera dinámica

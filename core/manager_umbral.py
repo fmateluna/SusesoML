@@ -144,14 +144,13 @@ def count_licenses_by_diagnosis(df, window_days=30, cods_list=None, entity_col='
     df.drop(columns=['diagn_letter'], inplace=True)
     return df
 
-def process_umbral_data(df, entity_col='rut_medico', window_days=30):
+def process_umbral_data(df, entity_col='rut_medico'):
     """
     Procesa el DataFrame aplicando filtros y calculando métricas de umbral.
 
     Parámetros:
         df (pd.DataFrame): DataFrame con datos de licencias.
-        entity_col (str): Columna de entidad (por ejemplo, 'rut_medico').
-        window_days (int): Ventana de tiempo para los cálculos.
+        entity_col (str): Columna de entidad (por ejemplo, 'rut_medico').        
 
     Retorna:
         pd.DataFrame: DataFrame procesado con columnas adicionales.
