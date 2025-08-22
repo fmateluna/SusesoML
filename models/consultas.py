@@ -12,8 +12,8 @@ class ConsultaLicenciaRequest:
     rut_empleador: Optional[str] = None
     folio: Optional[str] = None
     fecha: Optional[date] = None
-    fecha_inicio: Optional[date] = None
-    fecha_fin: Optional[date] = None
+    fecha_inicio: Optional[str] = None
+    fecha_fin: Optional[str] = None
     cod_diagnostico: Optional[str] = None
     especialidad_medico: Optional[str] = None
 
