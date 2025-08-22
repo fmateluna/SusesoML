@@ -1,38 +1,23 @@
+from dataclasses import dataclass
+from datetime import date
 from multiprocessing import Process, Queue
 import asyncio
 import time
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
-from core.manager import process_umbral_task, propensy_score,propensy_score_licencia,generate_data_umbral
+from core.manager import consulta_lincencia_from_rest, process_umbral_task, propensy_score,propensy_score_licencia,generate_data_umbral
 from typing import Optional
 import hashlib
 import logging
 
 from core.services import get_umbral_status, manage_umbral_status
+from models.consultas import ConsultaLicenciaRequest, MasivoRequest, UmbralRequest
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
 status_store = {}
-
-# Modelo para validar la entrada
-class ConsultaRequest(BaseModel):
-    especialidad_profesional: str
-    cod_diagnostico_principal: str
-    nombre_columna: str
-    fecha_inicio: str
-    fecha_fin: str
-    
-# Modelo para validar la entrada
-class MasivoRequest(BaseModel):
-    fecha_inicio: str
-    fecha_fin: str    
-
-class UmbralRequest(BaseModel):
-    fecha: str
-    dias: Optional[int] = 60
-    columna_entidad: Optional[str] = "rut_medico"
 
 
 def generate_request_hash(request: UmbralRequest) -> str:
@@ -125,3 +110,15 @@ async def monitor_status(request_hash: str, status_queue: Queue):
 async def get_umbral_status_endpoint(request_hash: str):
     """Check the status of a query by its request hash."""
     return get_umbral_status(request_hash)
+
+@router.post("/licencias/query")
+def query_score(request: ConsultaLicenciaRequest):
+    """Consulta todos los datos de licencias."""
+    try:
+        data = consulta_lincencia_from_rest(request)
+        return data
+
+    except ValueError as e:
+        return {"status": "error", "message": str(e)}
+    except Exception as e:
+        return {"status": "error", "message": f"Error inesperado: {str(e)}"}

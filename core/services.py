@@ -14,6 +14,15 @@ import time
 from sqlalchemy import text
 from datetime import datetime
 
+from dataclasses import dataclass
+from typing import Optional
+from datetime import date
+
+from models.consultas import ConsultaLicenciaRequest
+
+
+
+
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
@@ -508,3 +517,70 @@ def insert_anomalias(results: pd.DataFrame):
         raise ValueError(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
     finally:
         session.close()
+
+def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
+    """
+    Ejecuta la consulta de licencias con filtros opcionales.
+    """
+    query_path = "./sql/consulta_licencia.sql"
+
+    # Si tiene fecha única → ignoramos rango
+    fecha_unica = where_query.fecha
+    fecha_inicio = where_query.fecha_inicio
+    fecha_fin = where_query.fecha_fin
+
+    
+
+    # Si viene rango incompleto, lo ignoramos
+    if (fecha_inicio and not fecha_fin) or (fecha_fin and not fecha_inicio):
+        raise ValueError("Debe especificar tanto fecha_inicio como fecha_fin o ninguna")
+    else:
+         if (fecha_inicio and fecha_fin):
+            fecha_inicio, fecha_fin = parse_dates(where_query.fecha_inicio, where_query.fecha_fin)
+
+    query_params = {
+        "id_lic": where_query.id_lic,
+        "rut_trabajador": where_query.rut_trabajador,
+        "rut_medico": where_query.rut_medico,
+        "rut_empleador": where_query.rut_empleador,
+        "folio": where_query.folio,
+        "fecha_unica": fecha_unica,
+        "fecha_inicio": fecha_inicio,
+        "fecha_fin": fecha_fin,
+        "cod_diagnostico": where_query.cod_diagnostico,
+        "especialidad_medico": where_query.especialidad_medico,
+    }
+
+    try:
+        result = execute_query(query_path, query_params)
+
+        if not result:
+            return pd.DataFrame()
+        
+        df = pd.DataFrame(result, columns=[
+            "id_lic", "operador", "ccaf", "entidad_pagadora", "folio",
+            "fecha_emision", "empleador_adscrito", "codigo_interno_prestador",
+            "comuna_prestador", "fecha_ultimo_estado", "ultimo_estado",
+            "rut_trabajador", "sexo_trabajador", "edad_trabajador",
+            "tipo_reposo", "dias_reposo", "fecha_inicio_reposo",
+            "comuna_reposo", "tipo_licencia", "rut_medico",
+            "tipo_licencia_pronunciamiento", "codigo_continuacion_pronunciamiento",
+            "dias_autorizados_pronunciamiento", "codigo_diagnostico_pronunciamiento",
+            "codigo_autorizacion_pronunciamiento", "causa_rechazo_pronunciamiento",
+            "tipo_reposo_pronunciamiento", "derecho_a_subsidio_pronunciamiento",
+            "rut_empleador", "calidad_trabajador", "actividad_laboral_trabajador",
+            "ocupacion", "entidad_pagadora_zona_c", "fecha_recepcion_empleador",
+            "regimen_previsional", "entidad_pagadora_subsidio", "comuna_laboral",
+            "comuna_uso_compin", "cantidad_de_pronunciamientos", "cantidad_de_zonas_d",
+            "secuencia_estados", "cod_diagnostico_principal", "cod_diagnostico_secundario",
+            "periodo", "marca_otorgamiento", "cod_diagnostico", "especialidad_medico",
+            "rn1", "rn2", "score_frecuencia_medico_7d", "score_frecuencia_medico_15d",
+            "score_frecuencia_medico_30d", "score_frecuencia_f_30d_medico",
+            "score_frecuencia_j_30d_medico", "score_frecuencia_m_30d_medico",
+            "score_n_remotas_30d", "score_n_presenciales_30d"
+        ])
+        return df
+
+    except Exception as e:
+        logger.error(f"Error ejecutando consulta_licencia: {e}")
+        raise

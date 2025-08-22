@@ -1,15 +1,16 @@
-
+from fastapi.encoders import jsonable_encoder
 from core.anomalias import calcular_anomalias
 from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
 from core.repo_umbrales.execute_umbrales import csv_to_results_umbrales
-from core.services import query_masivo,query_score_licencia,query_data_umbral
+from core.services import consulta_licencia, query_masivo,query_score_licencia,query_data_umbral
 import logging
 import os
 import csv
 from multiprocessing import  Queue
 import pandas as pd
 from core.services import query_data_umbral, manage_umbral_status
+from models.consultas import ConsultaLicenciaRequest
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -138,7 +139,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
         result_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/results.csv"
         csv_to_results_umbrales(data_df, result_csv_path,dias,columna_entidad)        
 
-        calcular_anomalias(data_df)
+        #calcular_anomalias(data_df)
         # Registrar estado final
         status_queue.put(
             manage_umbral_status(
@@ -160,4 +161,8 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 message=str(e)
             )
         )
-        
+
+def consulta_lincencia_from_rest(where_query: ConsultaLicenciaRequest):
+    from_db = consulta_licencia(where_query)  # DataFrame    
+    data = from_db.fillna("").to_dict(orient="records")
+    return jsonable_encoder(data)

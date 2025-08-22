@@ -38,25 +38,34 @@ class Umbrales:
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+_model_cache = {}
+
+
+def get_model(model_path):
+    """Obtiene el modelo desde cache o lo carga si no existe."""
+    if model_path not in _model_cache:
+        logger.info(f"Cargando modelo desde disco: {model_path}")
+        with open(model_path, 'rb') as f:
+            _model_cache[model_path] = pkl.load(f)
+    return _model_cache[model_path]
+
+
 def apply_model(df, config):
-    """Función para aplicar un modelo."""
+    """Función para aplicar un modelo usando cache."""
     model_path = config['path']
     try:
+        model = get_model(model_path)  # Para no cargarlo siempre, lo dejo en cache
         logger.info(f"Ejecutando MODELO {model_path}")
-        model = pkl.load(open(model_path, 'rb'))
+
         if hasattr(model, 'window_days') and model.window_days != config['days']:
             logger.warning(f"El modelo en {model_path} tiene window_days={model.window_days}, esperado {config['days']}.")
-        
+
         # Fit y predict_proba, agregando la columna de score
         model.fit(df)
         if hasattr(model, 'col_frecuencia'):
             filename = os.path.basename(model_path) 
             base_name = filename.replace("umbral_model_", "").replace(".pkl", "")
-
-            # Generar nombre de la columna con prefijo "score_" que coinciden con la tabla 
             score_col = f"score_{base_name}"
-
-
             df[score_col] = model.predict_proba(df)
             logger.info(f"Modelo {model_path} aplicado. Columna agregada: {score_col}")
         else:
@@ -64,8 +73,8 @@ def apply_model(df, config):
         return df
     except Exception as e:
         logger.error(f"Error al aplicar modelo {model_path}: {str(e)}")
-        return df  # Retorna df sin cambios en caso de error
-
+        return df
+    
 def process_umbral_data(df, entity_col='rut_medico', base_path=None):
     try:
         if base_path is None:
