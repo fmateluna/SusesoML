@@ -5,6 +5,8 @@ import logging
 import pickle as pkl
 import os
 
+from core.services import insert_umbrales
+
 class Umbrales:
     def __init__(self, col_frecuencia):
         self.col_frecuencia = col_frecuencia
@@ -51,7 +53,7 @@ def apply_model(df, config):
             filename = os.path.basename(model_path) 
             base_name = filename.replace("umbral_model_", "").replace(".pkl", "")
 
-            # Generar nombre de la columna con prefijo "score_"
+            # Generar nombre de la columna con prefijo "score_" que coinciden con la tabla 
             score_col = f"score_{base_name}"
 
 
@@ -96,71 +98,17 @@ def process_umbral_data(df, entity_col='rut_medico', base_path=None):
         logger.error(f"Error procesando datos de umbral: {str(e)}")
         raise
 
-def csv_to_results_umbrales(data_csv_path, result_csv_path):
+def csv_to_results_umbrales(data_df, result_csv_path,dias,entity_col):
     sys.modules['__main__'].Umbrales = Umbrales
     try:
-        df = pd.read_csv(data_csv_path)
-        logger.info("DataFrame leído exitosamente del CSV.")
-        #print("DataFrame original:")
-        #print(df)
 
-        df_processed = process_umbral_data(df)
+        df_processed = process_umbral_data(data_df)
         logger.info("Procesamiento completado. DataFrame procesado:")
         print(df_processed)
 
-        """
-        new_columns = [col for col in df_processed.columns if col not in expected_columns]
-        if new_columns:
-            logger.info(f"Columnas nuevas agregadas: {new_columns}")
-            print("Columnas nuevas y valores:")
-            print(df_processed[new_columns])
-        else:
-            logger.warning("No se agregaron columnas nuevas. Verifica los modelos.")
-        """
         df_processed.to_csv(result_csv_path, index=False)
+        insert_umbrales(df_processed, fecha=data_df['fecha_emision'], dias=dias, columna_entidad=entity_col)
         logger.info(f"Resultado guardado en {result_csv_path}")
 
     except Exception as e:
         logger.error(f"Error en la ejecución standalone: {str(e)}")    
-
-# Código standalone
-if __name__ == "__main__":
-    sys.modules['__main__'].Umbrales = Umbrales
-    csv_path = 'process_data.csv'  # Ajusta si es necesario
-    try:
-        df = pd.read_csv(csv_path)
-        logger.info("DataFrame leído exitosamente del CSV.")
-        print("DataFrame original:")
-        print(df)
-
-        expected_columns = [
-            'id_licencia', 'folio', 'dias_reposo', 'fecha_emision', 'fecha_inicio_reposo',
-            'especialidad_profesional', 'cod_diagnostico_principal', 'rut_medico',
-            'rut_trabajador', 'marca_otorgamiento', 'frecuencia_medico_30D',
-            'frecuencia_medico_15D', 'frecuencia_medico_7D', 'frecuencia_J_60D_medico',
-            'frecuencia_F_60D_medico', 'frecuencia_M_60D_medico', 'n_remotas_60D',
-            'n_presenciales_60D'
-        ]
-        if not all(col in df.columns for col in expected_columns):
-            raise ValueError("El CSV no contiene todas las columnas esperadas.")
-        logger.info("Columnas del CSV verificadas correctamente.")
-
-        df_processed = process_umbral_data(df)
-        logger.info("Procesamiento completado. DataFrame procesado:")
-        print(df_processed)
-
-        new_columns = [col for col in df_processed.columns if col not in expected_columns]
-        if new_columns:
-            logger.info(f"Columnas nuevas agregadas: {new_columns}")
-            print("Columnas nuevas y valores:")
-            print(df_processed[new_columns])
-        else:
-            logger.warning("No se agregaron columnas nuevas. Verifica los modelos.")
-        
-        # Guardar el resultado en un CSV con sufijo _result
-        result_path = os.path.splitext(csv_path)[0] + '_result.csv'
-        df_processed.to_csv(result_path, index=False)
-        logger.info(f"Resultado guardado en {result_path}")
-
-    except Exception as e:
-        logger.error(f"Error en la ejecución standalone: {str(e)}")

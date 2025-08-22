@@ -1,4 +1,5 @@
 
+from core.anomalias import calcular_anomalias
 from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
 from core.repo_umbrales.execute_umbrales import csv_to_results_umbrales
@@ -87,7 +88,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
         )
 
         # Ejecutar consulta y procesar datos
-        processed_df, execution_time = generate_data_umbral(fecha, dias, columna_entidad)
+        data_df, execution_time = generate_data_umbral(fecha, dias, columna_entidad)
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -106,24 +107,38 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 fecha=fecha,
                 dias=dias,
                 entidad=columna_entidad,
-                status="create_csv_data"
+                status="process_data"
             )
         )
         data_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/data.csv"
-        save_to_csv(processed_df, data_csv_path)
 
+        if not os.path.exists(data_csv_path):
+            print(f"Error: el archivo de datos '{data_csv_path}' no existe.")
+            status_queue.put(
+                manage_umbral_status(
+                    request_hash=request_hash,
+                    fecha=fecha,
+                    dias=dias,
+                    entidad=columna_entidad,
+                    status="no data"
+                )
+            )
+            return 
+        
+        save_to_csv(data_df, data_csv_path)
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
                 fecha=fecha,
                 dias=dias,
                 entidad=columna_entidad,
-                status="execute_csv_results"
+                status="execute_data"
             )
         )
         result_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/results.csv"
-        csv_to_results_umbrales(data_csv_path, result_csv_path)        
+        csv_to_results_umbrales(data_df, result_csv_path,dias,columna_entidad)        
 
+        calcular_anomalias(data_df)
         # Registrar estado final
         status_queue.put(
             manage_umbral_status(

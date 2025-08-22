@@ -144,7 +144,7 @@ def count_licenses_by_diagnosis(df, window_days=30, cods_list=None, entity_col='
     df.drop(columns=['diagn_letter'], inplace=True)
     return df
 
-def process_umbral_data(df, entity_col='rut_medico'):
+def process_umbral_data(df, entity_col='rut_medico',dias=60):
     """
     Procesa el DataFrame aplicando filtros y calculando métricas de umbral.
 
@@ -172,7 +172,7 @@ def process_umbral_data(df, entity_col='rut_medico'):
 
         # Calcular licencias remotas y presenciales
         df = count_licenses_by_otorgamiento(df, entity_col=entity_col, window_days=30)
-
+        
         return df
 
     except Exception as e:

@@ -337,3 +337,174 @@ def get_umbral_status(request_hash: str) -> dict:
         raise ValueError(f"Error al consultar estado: {str(e)}")
     finally:
         session.close()
+
+
+def insert_umbrales(results: pd.DataFrame, fecha: str, dias: int, columna_entidad: str):
+    """
+    Inserta los datos procesados de umbrales en la tabla umbrales.
+    Asume que el DataFrame 'results' contiene las columnas necesarias después del procesamiento.
+    Agrega las columnas fecha, dias y columna_entidad como valores constantes del request.
+    Usa INSERT con ON CONFLICT DO UPDATE para manejar posibles duplicados (asumiendo unique constraint en id_lic, fecha).
+    """
+    session = SessionLocal()
+    try:
+        if results.empty:
+            logger.warning("DataFrame vacío, no se insertan datos en umbrales")
+            return
+
+        # Agregar columnas constantes del request al DataFrame
+        results['fecha'] = fecha
+        results['dias'] = dias
+        results['columna_entidad'] = columna_entidad
+
+        if 'id_licencia' in results.columns:
+            results = results.rename(columns={'id_licencia': 'id_lic'})
+
+        expected_columns = [
+            'id_lic', 'folio', 'fecha', 'dias', 'columna_entidad',
+            'dias_reposo', 'fecha_emision', 'fecha_inicio_reposo',
+            'especialidad_profesional', 'cod_diagnostico_principal',
+            'rut_medico', 'rut_trabajador', 'marca_otorgamiento',
+            'frecuencia_medico_30D', 'frecuencia_medico_15D', 'frecuencia_medico_7D',
+            'frecuencia_J_30D_medico', 'frecuencia_F_30D_medico', 'frecuencia_M_30D_medico',
+            'n_remotas_30D', 'n_presenciales_30D',
+            'score_frecuencia_medico_7D', 'score_frecuencia_medico_15D',
+            'score_frecuencia_medico_30D', 'score_frecuencia_F_30D_medico',
+            'score_frecuencia_J_30D_medico', 'score_frecuencia_M_30D_medico',
+            'score_n_remotas_30D', 'score_n_presenciales_30D'
+        ]
+
+        for col in expected_columns:
+            if col not in results.columns:
+                if 'score_' in col:
+                    results[col] = 0.0
+                else:
+                    logger.warning(f"Columna {col} no encontrada en DataFrame, se omitirá o seteará a NULL")
+
+        upsert_query = """
+        INSERT INTO ml.umbrales (
+            id_lic, folio, fecha, dias, columna_entidad,
+            dias_reposo, fecha_emision, fecha_inicio_reposo,
+            especialidad_profesional, cod_diagnostico_principal,
+            rut_medico, rut_trabajador, marca_otorgamiento,
+            frecuencia_medico_30D, frecuencia_medico_15D, frecuencia_medico_7D,
+            frecuencia_J_30D_medico, frecuencia_F_30D_medico, frecuencia_M_30D_medico,
+            n_remotas_30D, n_presenciales_30D,
+            score_frecuencia_medico_7D, score_frecuencia_medico_15D,
+            score_frecuencia_medico_30D, score_frecuencia_F_30D_medico,
+            score_frecuencia_J_30D_medico, score_frecuencia_M_30D_medico,
+            score_n_remotas_30D, score_n_presenciales_30D
+        ) VALUES (
+            :id_lic, :folio, :fecha, :dias, :columna_entidad,
+            :dias_reposo, :fecha_emision, :fecha_inicio_reposo,
+            :especialidad_profesional, :cod_diagnostico_principal,
+            :rut_medico, :rut_trabajador, :marca_otorgamiento,
+            :frecuencia_medico_30D, :frecuencia_medico_15D, :frecuencia_medico_7D,
+            :frecuencia_J_30D_medico, :frecuencia_F_30D_medico, :frecuencia_M_30D_medico,
+            :n_remotas_30D, :n_presenciales_30D,
+            :score_frecuencia_medico_7D, :score_frecuencia_medico_15D,
+            :score_frecuencia_medico_30D, :score_frecuencia_F_30D_medico,
+            :score_frecuencia_J_30D_medico, :score_frecuencia_M_30D_medico,
+            :score_n_remotas_30D, :score_n_presenciales_30D
+        )
+         ON CONFLICT (id_lic, dias, columna_entidad) DO NOTHING;
+        """
+
+        params_list = [
+            {col: row.get(col, None) for col in expected_columns}
+            for _, row in results.iterrows()
+        ]
+
+        session.execute(text(upsert_query), params_list)
+        session.commit()
+        logger.info(f"Insertados/actualizados {len(params_list)} registros en umbrales")
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Error al insertar en umbrales: {str(e)}")
+        raise ValueError(f"Error al insertar en umbrales: {str(e)}")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error inesperado al insertar en umbrales: {str(e)}")
+        raise ValueError(f"Error inesperado al insertar en umbrales: {str(e)}")
+    finally:
+        session.close()        
+
+def insert_anomalias(results: pd.DataFrame):
+    """
+    Inserta los datos procesados de anomalías en la tabla ml.anomalias.
+    Usa INSERT con ON CONFLICT DO UPDATE para manejar duplicados (basado en id_lic).
+    Se espera que 'results' tenga las columnas necesarias para la tabla ml.anomalias.
+    """
+    session = SessionLocal()
+    try:
+        if results.empty:
+            logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
+            return
+
+        # Renombrar si hace falta (consistencia)
+        if 'id_licencia' in results.columns:
+            results = results.rename(columns={'id_licencia': 'id_lic'})
+
+        # Columnas que debe tener el DataFrame (idénticas a la tabla)
+        expected_columns = [
+            "id_lic", "rut_medico", "rut_trabajador", "rut_empleador",
+            "dias_reposo", "edad_trabajador", "hora_emision", "dia_codificado",
+            "calidad_trabajador_independiente", "calidad_trabajador_dependiente_privado",
+            "calidad_trabajador_publico_afecto", "calidad_trabajador_publico_no_afecto",
+            "recencia_trabajador", "frecuencia_trabajador_60d", "frecuencia_trabajador_40d",
+            "frecuencia_trabajador_20d", "reposo_trabajador_60d", "reposo_trabajador_40d",
+            "reposo_trabajador_20d", "n_medicos_distintos_xtrabajador_60d",
+            "n_empleadores_distintos_xtrabajador_60d", "desviacion_reposo_trabajador_60d",
+            "recencia_medico", "frecuencia_medico_30d", "frecuencia_medico_15d",
+            "frecuencia_medico_7d", "reposo_medico_30d", "reposo_medico_15d",
+            "reposo_medico_7d", "licencias_20_min", "licencias_40_min", "licencias_60_min",
+            "max_licencias_dia_30d", "frecuencia_j_30d_medico", "frecuencia_f_30d_medico",
+            "frecuencia_m_30d_medico", "max_rest_days_30d", "diferencia_dias",
+            "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60d",
+            "n_empleadores_distintos_xmedico_60d", "hhi_empleadores_por_medico_60d",
+            "n_remotas_30d", "n_presenciales_30d", "recencia_empleador",
+            "frecuencia_empleador_60d", "frecuencia_empleador_40d", "frecuencia_empleador_20d",
+            "reposo_empleador_60d", "reposo_empleador_40d", "reposo_empleador_20d",
+            "n_trabajadores_distintos_xempleador_60d", "n_medicos_distintos_xempleador_60d",
+            "frecuencia_j_30d_empleador", "frecuencia_f_30d_empleador", "frecuencia_m_30d_empleador",
+            "historial_trabajador_medico", "historial_empleador_medico", "ponderado_medico_trabajador",
+            "anomaly_score", "propensity_score_iforest"
+        ]
+
+        # Asegurar que el DF tenga todas las columnas (si falta alguna → None)
+        for col in expected_columns:
+            if col not in results.columns:
+                results[col] = None
+
+        upsert_query = f"""
+        INSERT INTO ml.anomalias (
+            {", ".join(expected_columns)}
+        ) VALUES (
+            {", ".join([f":{col}" for col in expected_columns])}
+        )
+        ON CONFLICT (id_lic) DO UPDATE
+        SET
+            {", ".join([f"{col} = EXCLUDED.{col}" for col in expected_columns if col != "id_lic"])}
+        ;
+        """
+
+        params_list = [
+            {col: row.get(col, None) for col in expected_columns}
+            for _, row in results.iterrows()
+        ]
+
+        session.execute(text(upsert_query), params_list)
+        session.commit()
+        logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.anomalias")
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Error al insertar en ml.anomalias: {str(e)}")
+        raise ValueError(f"Error al insertar en ml.anomalias: {str(e)}")
+    except Exception as e:
+        session.rollback()
+        logger.error(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
+        raise ValueError(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
+    finally:
+        session.close()

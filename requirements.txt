@@ -6,3 +6,4 @@ python-dotenv
 pandas
 pydantic
 dill
+scikit-learn==1.1.3
