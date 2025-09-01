@@ -5,7 +5,7 @@ import asyncio
 import time
 from fastapi import APIRouter, BackgroundTasks
 from pydantic import BaseModel
-from core.manager import consulta_lincencia_from_rest, process_umbral_task, propensy_score,propensy_score_licencia,generate_data_umbral
+from core.manager import consulta_licencia_from_rest, process_umbral_task, propensy_score,propensy_score_licencia
 from typing import Optional
 import hashlib
 import logging
@@ -115,7 +115,7 @@ async def get_umbral_status_endpoint(request_hash: str):
 def query_score(request: ConsultaLicenciaRequest):
     """Consulta todos los datos de licencias."""
     try:
-        data = consulta_lincencia_from_rest(request)
+        data = consulta_licencia_from_rest(request)
         return data
 
     except ValueError as e:

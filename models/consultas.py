@@ -16,6 +16,7 @@ class ConsultaLicenciaRequest:
     fecha_fin: Optional[str] = None
     cod_diagnostico: Optional[str] = None
     especialidad_medico: Optional[str] = None
+    content_type: Optional[str]="csv"
 
 # Modelo para validar la entrada
 class ConsultaRequest(BaseModel):

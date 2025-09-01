@@ -11,10 +11,36 @@ from multiprocessing import  Queue
 import pandas as pd
 from core.services import query_data_umbral, manage_umbral_status
 from models.consultas import ConsultaLicenciaRequest
+
+import pandas as pd
+from fastapi.encoders import jsonable_encoder
+from fastapi.responses import JSONResponse, StreamingResponse
+import io
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+
+def to_json(df: pd.DataFrame):
+    data = df.fillna("").to_dict(orient="records")
+    return JSONResponse(content=jsonable_encoder(data))
+
+def to_csv(df: pd.DataFrame):
+    buffer = io.StringIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
+    return StreamingResponse(
+        buffer,
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=consulta.csv"}
+    )
+
+
+FORMAT_DISPATCHER = {
+    "json": to_json,
+    "csv": to_csv
+}
 
 execute_scores_map = {}
 managerPickle =  ManagerPickle()
@@ -73,6 +99,15 @@ def save_to_csv(df: pd.DataFrame, output_path: str) -> None:
         return
     df.to_csv(output_path, index=False, encoding='utf-8')
     logger.info(f"CSV guardado {output_path}")
+    
+
+def consulta_licencia_from_rest(where_query: ConsultaLicenciaRequest):
+    df = consulta_licencia(where_query)  
+    content_type = getattr(where_query, "content_type", "json").lower()
+    converter = FORMAT_DISPATCHER.get(content_type, to_json)
+
+    return converter(df)
+
 
 def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_hash: str, status_queue: Queue) -> None:
     """Process the umbral query, apply calculations, and save results to CSV."""
@@ -162,7 +197,4 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
             )
         )
 
-def consulta_lincencia_from_rest(where_query: ConsultaLicenciaRequest):
-    from_db = consulta_licencia(where_query)  # DataFrame    
-    data = from_db.fillna("").to_dict(orient="records")
-    return jsonable_encoder(data)
+
