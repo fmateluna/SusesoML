@@ -2,7 +2,7 @@ from fastapi.encoders import jsonable_encoder
 from core.anomalias import calcular_anomalias
 from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
-from core.repo_umbrales.execute_umbrales import csv_to_results_umbrales
+from core.repo_umbrales.execute_umbrales import process_umbral_and_save_db
 from core.services import consulta_licencia, query_masivo,query_score_licencia,query_data_umbral
 import logging
 import os
@@ -79,7 +79,12 @@ def generate_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut
         "cod_diagnostico_principal",
         "rut_medico",
         "rut_trabajador",
-        "marca_otorgamiento"
+        "calidad_trabajador",
+        "rut_empleador",
+        "marca_otorgamiento",
+        "edad_trabajador",
+        "sexo_trabajador",        
+        "n_trabajadores"
     ])
     processed_df = process_umbral_data(df, entity_col=columna_entidad)
     return processed_df, execution_time
@@ -112,7 +117,7 @@ def consulta_licencia_from_rest(where_query: ConsultaLicenciaRequest):
 def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_hash: str, status_queue: Queue) -> None:
     """Process the umbral query, apply calculations, and save results to CSV."""
     try:
-        # Registrar estado inicial
+
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -122,21 +127,10 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 status="extract_data"
             )
         )
-
         # Ejecutar consulta y procesar datos
         data_df, execution_time = generate_data_umbral(fecha, dias, columna_entidad)
-        status_queue.put(
-            manage_umbral_status(
-                request_hash=request_hash,
-                fecha=fecha,
-                dias=dias,
-                entidad=columna_entidad,
-                status="extract_data",
-                execution_time=execution_time
-            )
-        )
 
-        # Guardar resultados en CSV
+
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -146,35 +140,19 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 status="process_data"
             )
         )
-        data_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/data.csv"
+        result_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/results.csv"
+        process_umbral_and_save_db(data_df, result_csv_path,dias,columna_entidad)        
 
-        if not os.path.exists(data_csv_path):
-            print(f"Error: el archivo de datos '{data_csv_path}' no existe.")
-            status_queue.put(
-                manage_umbral_status(
-                    request_hash=request_hash,
-                    fecha=fecha,
-                    dias=dias,
-                    entidad=columna_entidad,
-                    status="no data"
-                )
-            )
-            return 
-        
-        save_to_csv(data_df, data_csv_path)
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
                 fecha=fecha,
                 dias=dias,
                 entidad=columna_entidad,
-                status="execute_data"
+                status="calc_data_anomaly"
             )
         )
-        result_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/results.csv"
-        csv_to_results_umbrales(data_df, result_csv_path,dias,columna_entidad)        
-
-        #calcular_anomalias(data_df)
+        calcular_anomalias(data_df)
         # Registrar estado final
         status_queue.put(
             manage_umbral_status(

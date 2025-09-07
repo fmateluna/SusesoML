@@ -1,3 +1,4 @@
+import sys
 import pandas as pd
 import numpy as np
 from typing import List, Optional, Tuple
@@ -163,6 +164,8 @@ class AnomaliesModel:
         return self.transform(df_seleccion, decision_col=decision_col, propensity_col=propensity_col)
 
 def exec_anomalias(df_seleccion: pd.DataFrame):
+    sys.modules['__main__'].AnomaliesModel = AnomaliesModel
+
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
     with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:
         modelo = pkl.load(f)
@@ -172,6 +175,7 @@ def exec_anomalias(df_seleccion: pd.DataFrame):
         
 
 if __name__ == "__main__":
+    sys.modules['__main__'].AnomaliesModel = AnomaliesModel
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
     with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:
         modelo = pkl.load(f)

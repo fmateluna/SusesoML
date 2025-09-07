@@ -107,15 +107,15 @@ def process_umbral_data(df, entity_col='rut_medico', base_path=None):
         logger.error(f"Error procesando datos de umbral: {str(e)}")
         raise
 
-def csv_to_results_umbrales(data_df, result_csv_path,dias,entity_col):
+def process_umbral_and_save_db(data_df, result_csv_path,dias,entity_col):
     sys.modules['__main__'].Umbrales = Umbrales
     try:
 
         df_processed = process_umbral_data(data_df)
         logger.info("Procesamiento completado. DataFrame procesado:")
-        print(df_processed)
+        # print(df_processed)
 
-        df_processed.to_csv(result_csv_path, index=False)
+        # df_processed.to_csv(result_csv_path, index=False)
         insert_umbrales(df_processed, fecha=data_df['fecha_emision'], dias=dias, columna_entidad=entity_col)
         logger.info(f"Resultado guardado en {result_csv_path}")
 

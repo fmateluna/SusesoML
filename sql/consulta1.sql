@@ -5,6 +5,7 @@
         li.folio,
         li.dias_reposo,
         li.fecha_emision,
+        li.calidad_trabajador,
         li.fecha_inicio_reposo,
         ep.descripcion_especialidad_profesional,
         li.cod_diagnostico_principal

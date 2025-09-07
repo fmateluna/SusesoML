@@ -3,6 +3,8 @@ import numpy as np
 
 from core.repo_anomalias.run_anomalias import exec_anomalias
 from core.services import insert_anomalias
+import pandas as pd
+import numpy as np
 
 def count_licenses_by_entity(df, entity_col='rut_medico', window_days=30):
     """
@@ -93,12 +95,6 @@ def count_licenses_by_otorgamiento(df, entity_col='rut_medico', window_days=30):
     # Reindexar al DataFrame original
     df[f'n_remotas_{window_days}D'] = n_remotas.reindex(original_index)
     df[f'n_presenciales_{window_days}D'] = n_presenciales.reindex(original_index)
-    
-    try:
-        insert_anomalias(df, window_days=window_days)
-        #print("insert_anomalias correcto.")
-    except ValueError as e:
-        print(f"Error al insertar en DB: {e}")
 
     return df
 
@@ -573,6 +569,14 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
     df_licencias['fecha_emision'] = pd.to_datetime(df_licencias['fecha_emision'], errors='coerce')
     df_licencias = df_licencias.sort_values(by=['rut_medico', 'rut_trabajador', 'fecha_emision']).reset_index(drop=True)
 
+    """
+    df_licencias['n_trabajadores_reportados'] = df_licencias['n_trabajadores_reportados'] + 1
+
+    trabajadores_por_empleador = df_licencias.groupby('rut_empleador')['rut_trabajador'].nunique().reset_index()
+    trabajadores_por_empleador.rename(columns={'rut_trabajador': 'n_trabajadores_observados'}, inplace=True)
+    df_licencias = df_licencias.merge(trabajadores_por_empleador, on='rut_empleador', how='left')
+    df_licencias['n_trabajadores'] = df_licencias[['n_trabajadores_reportados', 'n_trabajadores_observados']].max(axis=1)
+    """
     #########################################################################################################################
     # Atributos de la licencia
     #########################################################################################################################
@@ -652,7 +656,7 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
         df_licencias[key] = serie
 
     # Calcular el máximo de licencias emitidas por día dentro de los 30 días previos del profesional médico asociado a la licencia médica.
-    df_licencias['max_licencias_dia_30D'] = max_licenses_per_time_period(df, window_days=30, window_type="day")
+    df_licencias['max_licencias_dia_30D'] = max_licenses_per_time_period(df_licencias, window_days=30, window_type="day")
 
     # Cantidad de licencias por código de diagnostico.
     df_licencias = count_licenses_by_diagnosis(df_licencias, window_days=30, cods_list=['J', 'F', 'M'], entity_col='rut_medico')
@@ -739,5 +743,8 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
     # En este caso procesamos la información de febrero, marzo y abril, lo correcto es filtrar y solo mantener las licencias de abril porque son las que tienen al menos 60 días de información.
     #########################################################################################################################}
     # df_seleccion = df_licencias[(df_licencias['fecha_emision'].dt.year == 2025) & (df_licencias['fecha_emision'].dt.month.isin([4]))].reset_index(drop=True)
+
+    # Puedes guardar el resultado si lo deseas:
+    # df_seleccion.to_csv('df_licencias_procesado.csv', index=False)
     df_licencias_exec = exec_anomalias(df_licencias)
     insert_anomalias(df_licencias_exec)

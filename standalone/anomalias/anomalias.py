@@ -6,7 +6,10 @@ from typing import List, Optional, Tuple
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import IsolationForest
-
+import os
+import pandas as pd
+import numpy as np
+from typing import List, Optional, Tuple
 
 class AnomaliesModel:
     """
@@ -160,7 +163,7 @@ class AnomaliesModel:
         """Conveniencia: entrena y luego transforma sobre el mismo DataFrame."""
         self.fit(df_seleccion)
         return self.transform(df_seleccion, decision_col=decision_col, propensity_col=propensity_col)
-
+    
 def calcular_anomalias(df_seleccion: pd.DataFrame):
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
     with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:

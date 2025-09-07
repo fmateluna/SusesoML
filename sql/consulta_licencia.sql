@@ -1,10 +1,10 @@
 SELECT
-    l.id_lic ,
+    l.id_lic,
     l.operador,
-    l.ccaf ,
+    l.ccaf,
     l.entidad_pagadora,
-    l.folio ,
-    l.fecha_emision ,
+    l.folio,
+    l.fecha_emision,
     l.empleador_adscrito,
     l.codigo_interno_prestador,
     l.comuna_prestador,
@@ -16,7 +16,7 @@ SELECT
     l.tipo_reposo,
     l.dias_reposo,
     l.fecha_inicio_reposo,
-    l.comuna_reposo ,
+    l.comuna_reposo,
     l.tipo_licencia,
     l.rut_medico,
     l.tipo_licencia_pronunciamiento,
@@ -28,21 +28,21 @@ SELECT
     l.tipo_reposo_pronunciamiento,
     l.derecho_a_subsidio_pronunciamiento,
     l.rut_empleador,
-    l.calidad_trabajador ,
+    l.calidad_trabajador,
     l.actividad_laboral_trabajador,
     l.ocupacion,
-    l.entidad_pagadora_zona_c ,
+    l.entidad_pagadora_zona_c,
     l.fecha_recepcion_empleador,
     l.regimen_previsional,
     l.entidad_pagadora_subsidio,
-    l.comuna_laboral ,
+    l.comuna_laboral,
     l.comuna_uso_compin,
     l.cantidad_de_pronunciamientos,
     l.cantidad_de_zonas_d,
     l.secuencia_estados,
     l.cod_diagnostico_principal,
     l.cod_diagnostico_secundario,
-    l.periodo ,
+    l.periodo,
     l.marca_otorgamiento,
     lde.cod_diagnostico,
     lde.especialidad_medico,
@@ -55,7 +55,71 @@ SELECT
     u.score_frecuencia_j_30d_medico,
     u.score_frecuencia_m_30d_medico,
     u.score_n_remotas_30d,
-    u.score_n_presenciales_30d
+    u.score_n_presenciales_30d,
+    -- Columnas de ml.anomalias (todas las de cálculo)
+    a.id,
+    a.id_lic,
+    a.rut_medico,
+    a.rut_trabajador,
+    a.rut_empleador,
+    a.dias_reposo,
+    a.edad_trabajador,
+    a.hora_emision,
+    a.dia_codificado,
+    a.calidad_trabajador_independiente,
+    a.calidad_trabajador_dependiente_privado,
+    a.calidad_trabajador_publico_afecto,
+    a.calidad_trabajador_publico_no_afecto,
+    a.recencia_trabajador,
+    a.frecuencia_trabajador_60d,
+    a.frecuencia_trabajador_40d,
+    a.frecuencia_trabajador_20d,
+    a.reposo_trabajador_60d,
+    a.reposo_trabajador_40d,
+    a.reposo_trabajador_20d,
+    a.n_medicos_distintos_xtrabajador_60d,
+    a.n_empleadores_distintos_xtrabajador_60d,
+    a.desviacion_reposo_trabajador_60d,
+    a.recencia_medico,
+    a.frecuencia_medico_30d,
+    a.frecuencia_medico_15d,
+    a.frecuencia_medico_7d,
+    a.reposo_medico_30d,
+    a.reposo_medico_15d,
+    a.reposo_medico_7d,
+    a.licencias_20_min,
+    a.licencias_40_min,
+    a.licencias_60_min,
+    a.max_licencias_dia_30d,
+    a.frecuencia_j_30d_medico,
+    a.frecuencia_f_30d_medico,
+    a.frecuencia_m_30d_medico,
+    a.max_rest_days_30d,
+    a.diferencia_dias,
+    a.licencias_despues_umbral,
+    a.n_trabajadores_distintos_xmedico_60d,
+    a.n_empleadores_distintos_xmedico_60d,
+    a.hhi_empleadores_por_medico_60d,
+    a.n_remotas_30d,
+    a.n_presenciales_30d,
+    a.recencia_empleador,
+    a.frecuencia_empleador_60d,
+    a.frecuencia_empleador_40d,
+    a.frecuencia_empleador_20d,
+    a.reposo_empleador_60d,
+    a.reposo_empleador_40d,
+    a.reposo_empleador_20d,
+    a.n_trabajadores_distintos_xempleador_60d,
+    a.n_medicos_distintos_xempleador_60d,
+    a.frecuencia_j_30d_empleador,
+    a.frecuencia_f_30d_empleador,
+    a.frecuencia_m_30d_empleador,
+    a.historial_trabajador_medico,
+    a.historial_empleador_medico,
+    a.ponderado_medico_trabajador,
+    a.anomaly_score,
+    a.propensity_score_iforest,
+    a.fecha_creacion
 FROM ml.licencias l
 INNER JOIN ml.licencia_diagnostico_especialidad lde 
     ON l.id_lic = lde.id_licencia
@@ -68,6 +132,8 @@ LEFT JOIN LATERAL (
 ) ps ON true
 LEFT JOIN ml.umbrales u
     ON l.id_lic = u.id_lic
+LEFT JOIN ml.anomalias a
+    ON l.id_lic = a.id_lic
 WHERE
     (:id_lic IS NULL OR l.id_lic = :id_lic)
     AND (:rut_trabajador IS NULL OR l.rut_trabajador = :rut_trabajador)
@@ -87,4 +153,7 @@ WHERE
     AND u.score_frecuencia_j_30d_medico IS NOT NULL
     AND u.score_frecuencia_m_30d_medico IS NOT NULL
     AND u.score_n_remotas_30d IS NOT NULL
-    AND u.score_n_presenciales_30d IS NOT NULL;
+    AND u.score_n_presenciales_30d IS NOT NULL
+    -- Filtros adicionales para anomalias (para asegurar datos de cálculo válidos)
+    AND a.anomaly_score IS NOT NULL
+    AND a.propensity_score_iforest IS NOT NULL;

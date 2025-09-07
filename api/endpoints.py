@@ -57,7 +57,7 @@ async def create_umbral(request: UmbralRequest, background_tasks: BackgroundTask
 
         # Consultar si el estado ya existe
         status = get_umbral_status(request_hash)
-        if status["status"] != "not_found":
+        if status["status"] != "not_found" or status["status"]=="finish":
             return status
 
         # Registrar estado inicial
