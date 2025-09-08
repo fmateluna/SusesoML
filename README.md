@@ -62,3 +62,20 @@ df_resultado = modelo.predict_prob(df)
 # Guardar resultado
 df_resultado.to_csv(salida_path, index=False)
 print(f"Resultado guardado en {salida_path}")
+
+
+// Metodología "Qué hacer"
+
+1. Input de entrada para endpoint B: FECHA.
+2. Ejecución de script para 60 días a partir de la fecha.
+    2.2. Parámetro de días (por defecto 60), editable pero oculto.
+3. Almacenamiento de la respuesta de ejecución:
+    - Hash por licencia.
+4. Retorno de hash asociado:
+    - Endpoint A: retorna status.
+5. Endpoint B:
+    - Retorna resultado total cuando endpoint A finaliza (status completo).
+
+// Tablas involucradas
+- umbrales_instancia: Hash_reporte, id_licencia, dias (60)
+- umbrales_parametros

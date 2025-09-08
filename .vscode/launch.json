@@ -1,6 +1,22 @@
 {
     "version": "0.2.0",
     "configurations": [
+                {
+            "name": "TEST_ANOMALIAS",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/standalone/anomalias/anomalias.py",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,            
+        },  
+        {
+            "name": "TEST_UMBRALES",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/standalone/umbrales.py",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,            
+        },        
         {
             "name": "TEST",
             "type": "python",

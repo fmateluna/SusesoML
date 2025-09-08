@@ -1,6 +1,40 @@
+from dataclasses import dataclass
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
+
+
+@dataclass
+class ConsultaLicenciaRequest:
+    id_lic: Optional[str] = None
+    rut_trabajador: Optional[str] = None
+    rut_medico: Optional[str] = None
+    rut_empleador: Optional[str] = None
+    folio: Optional[str] = None
+    fecha: Optional[date] = None
+    fecha_inicio: Optional[str] = None
+    fecha_fin: Optional[str] = None
+    cod_diagnostico: Optional[str] = None
+    especialidad_medico: Optional[str] = None
+    content_type: Optional[str]="csv"
+
+# Modelo para validar la entrada
+class ConsultaRequest(BaseModel):
+    especialidad_profesional: str
+    cod_diagnostico_principal: str
+    nombre_columna: str
+    fecha_inicio: str
+    fecha_fin: str
+    
+# Modelo para validar la entrada
+class MasivoRequest(BaseModel):
+    fecha_inicio: str
+    fecha_fin: str    
+
+class UmbralRequest(BaseModel):
+    fecha: str
+    dias: Optional[int] = 60
+    columna_entidad: Optional[str] = "rut_medico"
 
 
 

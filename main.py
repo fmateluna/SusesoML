@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 from api.endpoints import router as api_router
-import pandas as pd
 
 
 app = FastAPI(title="Manager Pickle Server")
