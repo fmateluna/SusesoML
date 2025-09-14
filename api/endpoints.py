@@ -3,15 +3,16 @@ from datetime import date
 from multiprocessing import Process, Queue
 import asyncio
 import time
-from fastapi import APIRouter, BackgroundTasks
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from core.manager import consulta_licencia_from_rest, process_umbral_task, propensy_score,propensy_score_licencia
+from core.manager import consulta_licencia_from_rest, consulta_semaforo_from_rest, process_umbral_task, propensy_score,propensy_score_licencia
 from typing import Optional
 import hashlib
 import logging
 
-from core.services import get_umbral_status, manage_umbral_status
-from models.consultas import ConsultaLicenciaRequest, MasivoRequest, UmbralRequest
+from core.semaforo import procesar_semaforo
+from core.services import consulta_licencia, get_umbral_status, manage_umbral_status
+from models.consultas import ConsultaLicenciaRequest, MasivoRequest, SemaforoRequest, UmbralRequest
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -122,3 +123,35 @@ def query_score(request: ConsultaLicenciaRequest):
         return {"status": "error", "message": str(e)}
     except Exception as e:
         return {"status": "error", "message": f"Error inesperado: {str(e)}"}
+    
+
+@router.post("/semaforo")
+def procesar_semaforo_endpoint(request: SemaforoRequest):
+    """
+    Endpoint para procesar datos médicos con SemaforoWatson.
+    
+    Args:
+        request (SemaforoRequest): Parámetros de la solicitud (mes, anio, etc.).
+    
+    """
+    try:
+        df_calculos = consulta_semaforo_from_rest(request) 
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Error a obtener datos para semaforo: {str(e)}")
+    
+    # Procesar los datos con el método procesar_datos_medicos
+    try:
+        resultado = procesar_semaforo(
+            df_calculos=df_calculos,
+            mes=request.mes,
+            anio=request.anio,
+            sort_values_by=request.sort_values_by,
+            umbral_decorte=request.umbral_decorte,
+            rn_ln_mes=request.rn_ln_mes,
+            umbral_deanomalias=request.umbral_deanomalias
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al procesar los datos: {str(e)}")
+    
+    # Convertir el DataFrame a JSON
+    return resultado.to_dict(orient="records")

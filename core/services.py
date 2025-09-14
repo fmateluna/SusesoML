@@ -199,7 +199,7 @@ def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> List[dict]:
         logger.error(f"Error ejecutando query_score_licencia: {str(e)}")
         raise
 
-def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> Tuple[List, float]:
+def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> Tuple[List]:
     """Ejecuta consulta de umbral y retorna resultados con tiempo de ejecución."""
     try:
         fecha_date = datetime.strptime(fecha, "%Y-%m-%d").date()
@@ -209,19 +209,15 @@ def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_me
         "fecha_inicio": fecha_date,
         "windows_days": dias,
     }
-    start_time = time.time()
     result = execute_query("./sql/datos_umbral.sql", query_params)
-    execution_time = time.time() - start_time
-    return result, execution_time
+    return result
 
 def manage_umbral_status(
     request_hash: str,
     fecha: str,
     dias: int,
     entidad: str,
-    status: str,
-    execution_time: float = None,
-    message: str = None
+    status: str
 ) -> dict:
     """
     Inserta o actualiza el estado en la tabla ml.umbral_data y devuelve el registro.
@@ -433,10 +429,9 @@ def insert_anomalias(results: pd.DataFrame) -> None:
         raise ValueError(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
     finally:
         session.close()
-
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
-    Ejecuta la consulta de licencias con filtros opcionales, incluyendo columnas de ml.anomalias.
+    Ejecuta la consulta de licencias con filtros opcionales, incluyendo columnas de ml.anomalias no redundantes.
     """
     query_path = "./sql/consulta_licencia.sql"
     fecha_unica = where_query.fecha
@@ -483,10 +478,8 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
             "score_frecuencia_medico_30d", "score_frecuencia_f_30d_medico",
             "score_frecuencia_j_30d_medico", "score_frecuencia_m_30d_medico",
             "score_n_remotas_30d", "score_n_presenciales_30d",
-            # Columnas de ml.anomalias
-            "anomalias_id", "anomalias_id_lic", "anomalias_rut_medico", "anomalias_rut_trabajador",
-            "anomalias_rut_empleador", "anomalias_dias_reposo", "anomalias_edad_trabajador",
-            "anomalias_hora_emision", "anomalias_dia_codificado",
+            # Columnas de ml.anomalias (solo las no redundantes)
+            "anomalias_id", "anomalias_hora_emision", "anomalias_dia_codificado",
             "anomalias_calidad_trabajador_independiente", "anomalias_calidad_trabajador_dependiente_privado",
             "anomalias_calidad_trabajador_publico_afecto", "anomalias_calidad_trabajador_publico_no_afecto",
             "anomalias_recencia_trabajador", "anomalias_frecuencia_trabajador_60d",
@@ -494,17 +487,13 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
             "anomalias_reposo_trabajador_60d", "anomalias_reposo_trabajador_40d",
             "anomalias_reposo_trabajador_20d", "anomalias_n_medicos_distintos_xtrabajador_60d",
             "anomalias_n_empleadores_distintos_xtrabajador_60d", "anomalias_desviacion_reposo_trabajador_60d",
-            "anomalias_recencia_medico", "anomalias_frecuencia_medico_30d",
-            "anomalias_frecuencia_medico_15d", "anomalias_frecuencia_medico_7d",
-            "anomalias_reposo_medico_30d", "anomalias_reposo_medico_15d",
-            "anomalias_reposo_medico_7d", "anomalias_licencias_20_min",
-            "anomalias_licencias_40_min", "anomalias_licencias_60_min",
-            "anomalias_max_licencias_dia_30d", "anomalias_frecuencia_j_30d_medico",
-            "anomalias_frecuencia_f_30d_medico", "anomalias_frecuencia_m_30d_medico",
+            "anomalias_recencia_medico", "anomalias_reposo_medico_30d",
+            "anomalias_reposo_medico_15d", "anomalias_reposo_medico_7d",
+            "anomalias_licencias_20_min", "anomalias_licencias_40_min",
+            "anomalias_licencias_60_min", "anomalias_max_licencias_dia_30d",
             "anomalias_max_rest_days_30d", "anomalias_diferencia_dias",
             "anomalias_licencias_despues_umbral", "anomalias_n_trabajadores_distintos_xmedico_60d",
             "anomalias_n_empleadores_distintos_xmedico_60d", "anomalias_hhi_empleadores_por_medico_60d",
-            "anomalias_n_remotas_30d", "anomalias_n_presenciales_30d",
             "anomalias_recencia_empleador", "anomalias_frecuencia_empleador_60d",
             "anomalias_frecuencia_empleador_40d", "anomalias_frecuencia_empleador_20d",
             "anomalias_reposo_empleador_60d", "anomalias_reposo_empleador_40d",

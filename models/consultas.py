@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+import pandas as pd
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
@@ -17,6 +18,15 @@ class ConsultaLicenciaRequest:
     cod_diagnostico: Optional[str] = None
     especialidad_medico: Optional[str] = None
     content_type: Optional[str]="csv"
+
+class SemaforoRequest(BaseModel):
+    mes: int
+    anio: int
+    sort_values_by: Optional[str] = "smf_rn"
+    umbral_decorte: Optional[float] = 0.6
+    rn_ln_mes: Optional[int] = 2
+    umbral_deanomalias: Optional[float] = 0.5
+    content_type: Optional[str] = "csv"
 
 # Modelo para validar la entrada
 class ConsultaRequest(BaseModel):

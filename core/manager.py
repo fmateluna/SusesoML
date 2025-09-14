@@ -1,8 +1,11 @@
+import calendar
+from datetime import date
 from fastapi.encoders import jsonable_encoder
 from core.anomalias import calcular_anomalias
 from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
 from core.repo_umbrales.execute_umbrales import process_umbral_and_save_db
+from core.semaforo import procesar_semaforo
 from core.services import consulta_licencia, query_masivo,query_score_licencia,query_data_umbral
 import logging
 import os
@@ -10,7 +13,7 @@ import csv
 from multiprocessing import  Queue
 import pandas as pd
 from core.services import query_data_umbral, manage_umbral_status
-from models.consultas import ConsultaLicenciaRequest
+from models.consultas import ConsultaLicenciaRequest, SemaforoRequest
 
 import pandas as pd
 from fastapi.encoders import jsonable_encoder
@@ -175,4 +178,32 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
             )
         )
 
+def consulta_semaforo_from_rest(request: SemaforoRequest):
 
+    fecha_inicio, fecha_fin = None, None
+
+    if request.mes and request.anio:
+        fecha_inicio = date(request.anio, request.mes, 1).isoformat()
+        last_day = calendar.monthrange(request.anio, request.mes)[1]
+        fecha_fin = date(request.anio, request.mes, last_day).isoformat()
+
+    where_query = ConsultaLicenciaRequest(
+        fecha_inicio=fecha_inicio,
+        fecha_fin=fecha_fin,
+        content_type=request.content_type
+    )
+
+    df_calculos = consulta_licencia(where_query)  
+    resultado = procesar_semaforo(
+        df_calculos=df_calculos,
+        mes=request.mes,
+        anio=request.anio,
+        sort_values_by=request.sort_values_by,
+        umbral_decorte=request.umbral_decorte,
+        rn_ln_mes=request.rn_ln_mes,
+        umbral_deanomalias=request.umbral_deanomalias
+    )
+    content_type = getattr(request, "content_type", "json").lower()
+    converter = FORMAT_DISPATCHER.get(content_type, to_json)
+
+    return converter(resultado)
