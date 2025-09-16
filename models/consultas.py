@@ -1,12 +1,11 @@
-from dataclasses import dataclass
+
 import pandas as pd
 from pydantic import BaseModel
 from typing import List, Optional
 from datetime import date
 
 
-@dataclass
-class ConsultaLicenciaRequest:
+class ConsultaLicenciaRequest(BaseModel):
     id_lic: Optional[str] = None
     rut_trabajador: Optional[str] = None
     rut_medico: Optional[str] = None

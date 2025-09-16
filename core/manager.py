@@ -6,13 +6,12 @@ from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
 from core.repo_umbrales.execute_umbrales import process_umbral_and_save_db
 from core.semaforo import procesar_semaforo
-from core.services import consulta_licencia, query_masivo,query_score_licencia,query_data_umbral
+from core.services import consulta_licencia, consulta_semaforo, query_masivo,query_score_licencia,query_data_umbral,manage_umbral_status
 import logging
 import os
 import csv
 from multiprocessing import  Queue
 import pandas as pd
-from core.services import query_data_umbral, manage_umbral_status
 from models.consultas import ConsultaLicenciaRequest, SemaforoRequest
 
 import pandas as pd
@@ -23,6 +22,18 @@ import io
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+from fastapi.responses import StreamingResponse
+import io
+
+def to_csv_str(df):
+    buffer = io.StringIO()
+    df.to_csv(buffer, index=False)
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),  # iterador síncrono
+        media_type="text/csv"
+    )
 
 
 def to_json(df: pd.DataFrame):
@@ -42,7 +53,7 @@ def to_csv(df: pd.DataFrame):
 
 FORMAT_DISPATCHER = {
     "json": to_json,
-    "csv": to_csv
+    "csv": to_csv_str
 }
 
 execute_scores_map = {}
@@ -179,7 +190,6 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
         )
 
 def consulta_semaforo_from_rest(request: SemaforoRequest):
-
     fecha_inicio, fecha_fin = None, None
 
     if request.mes and request.anio:
@@ -193,17 +203,9 @@ def consulta_semaforo_from_rest(request: SemaforoRequest):
         content_type=request.content_type
     )
 
-    df_calculos = consulta_licencia(where_query)  
-    resultado = procesar_semaforo(
-        df_calculos=df_calculos,
-        mes=request.mes,
-        anio=request.anio,
-        sort_values_by=request.sort_values_by,
-        umbral_decorte=request.umbral_decorte,
-        rn_ln_mes=request.rn_ln_mes,
-        umbral_deanomalias=request.umbral_deanomalias
-    )
-    content_type = getattr(request, "content_type", "json").lower()
-    converter = FORMAT_DISPATCHER.get(content_type, to_json)
+    df_calculos = consulta_licencia(where_query)
+    return df_calculos
 
-    return converter(resultado)
+def consulta_rest_semaforo(rango: str, rut_medico: str):
+    from_db =consulta_semaforo(rango, rut_medico)
+    return from_db

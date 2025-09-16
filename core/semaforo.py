@@ -2,6 +2,8 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
+from core.services import guardar_semaforo
+
 class SemaforoWatson:
   """
   Calcula indicadores 'semáforo' por médico combinando reglas, umbrales y anomalías.
@@ -141,6 +143,11 @@ class SemaforoWatson:
         if np.all(np.isfinite(col_vals)) and np.all(np.mod(col_vals, 1) == 0):
           semaforo_watson[col] = col_vals.astype("Int64")
 
+
+        for _, row in semaforo_watson.iterrows():
+            guardar_semaforo(row)
+
+
       if show_results is not None:
         return semaforo_watson.head(show_results)
 
@@ -223,9 +230,5 @@ def procesar_semaforo(
     # Agregar la columna "rango" con el formato "anio-mes", para identificar el rango del semaforo
     if anio is not None and mes is not None:
         resultado["rango"] = f"{anio}-{mes:02d}"
-    
-    # Mostrar resultados
-    print("=== Resultados Semáforo Watson ===")
-    print(resultado)
     
     return resultado

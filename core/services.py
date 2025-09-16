@@ -9,10 +9,23 @@ from datetime import datetime, timedelta
 from typing import List, Tuple
 import logging
 from models.consultas import ConsultaLicenciaRequest
+from datetime import datetime
+from threading import Lock
+
+
+umbral_cache = {}
+cache_lock = Lock()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
+from datetime import datetime
+import os
+
+
 
 def parse_dates(fecha_inicio: str, fecha_fin: str) -> Tuple[datetime, datetime]:
     """
@@ -213,6 +226,40 @@ def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_me
     return result
 
 def manage_umbral_status(
+    request_hash: str,
+    fecha: str,
+    dias: int,
+    entidad: str,
+    status: str
+) -> dict:
+    """
+    Inserta o actualiza el estado en el cache global y devuelve el registro.
+    """
+    record = {
+        "status": status,
+        "request_hash": request_hash,
+        "fecha": fecha,
+        "dias": dias,
+        "entidad": entidad,
+        "created_at": datetime.now().isoformat()
+    }
+
+    # Actualiza cache de manera segura
+    with cache_lock:
+        umbral_cache[request_hash] = record
+
+    return record
+
+
+def get_umbral_status(request_hash: str) -> dict | None:
+    """
+    Recupera un registro desde el cache global.
+    """
+    with cache_lock:
+        return umbral_cache.get(request_hash)
+
+
+def manage_umbral_status_dba(
     request_hash: str,
     fecha: str,
     dias: int,
@@ -511,3 +558,54 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     except Exception as e:
         logger.error(f"Error ejecutando consulta_licencia: {str(e)}")
         raise
+
+
+
+def guardar_semaforo(data: dict) -> dict:
+    """
+    Inserta o actualiza un resultado del semáforo en ml.semaforo_resultados.
+    Si existe (rut_medico + rango), lo actualiza; de lo contrario, lo inserta.
+    """
+    session = SessionLocal()
+    try:
+        query = read_sql_file("./sql/guardar_semaforo.sql")
+        params = {
+            "rut_medico": data.get("rut_medico"),
+            "n_lic": data.get("n_lic", 0),
+            "rn": data.get("rn", 0),
+            "rango": data.get("rango"),
+            "um": data.get("um", 0),
+            "an": data.get("an", 0),
+            "smf_rn": data.get("smf_rn", 0.0),
+            "smf_um": data.get("smf_um", 0.0),
+            "smf_an": data.get("smf_an", 0.0),
+            "created_at": datetime.now()
+        }
+        result = session.execute(text(query), params).fetchone()
+        session.commit()
+        if not result:
+            raise ValueError("No se pudo guardar el registro en ml.semaforo_resultados")
+        return dict(result._mapping)
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Error al guardar semáforo: {str(e)}")
+        raise ValueError(f"Error al guardar semáforo: {str(e)}")
+    finally:
+        session.close()
+
+
+def consulta_semaforo(rango: str = None, rut_medico: str = None) -> list[dict]:
+    """
+    Consulta resultados de semáforo filtrando opcionalmente por rango y/o rut_medico.
+    """
+    session = SessionLocal()
+    try:
+        query = read_sql_file("./sql/consulta_semaforo.sql")
+        params = {"rango": rango, "rut_medico": rut_medico}
+        result = session.execute(text(query), params).fetchall()
+        return [dict(r._mapping) for r in result]
+    except SQLAlchemyError as e:
+        logger.error(f"Error al consultar semáforo: {str(e)}")
+        raise ValueError(f"Error al consultar semáforo: {str(e)}")
+    finally:
+        session.close()

@@ -5,13 +5,16 @@ import asyncio
 import time
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from core.manager import consulta_licencia_from_rest, consulta_semaforo_from_rest, process_umbral_task, propensy_score,propensy_score_licencia
+from core.manager import FORMAT_DISPATCHER, consulta_licencia_from_rest, consulta_semaforo_from_rest, process_umbral_task, propensy_score,propensy_score_licencia, to_csv, to_json
 from typing import Optional
 import hashlib
 import logging
-
+from fastapi import APIRouter
+from threading import Thread, Lock
+from datetime import datetime
+import hashlib
 from core.semaforo import procesar_semaforo
-from core.services import consulta_licencia, get_umbral_status, manage_umbral_status
+from core.services import consulta_licencia, consulta_semaforo, get_umbral_status, manage_umbral_status
 from models.consultas import ConsultaLicenciaRequest, MasivoRequest, SemaforoRequest, UmbralRequest
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -20,11 +23,37 @@ logger = logging.getLogger(__name__)
 router = APIRouter()
 status_store = {}
 
+router = APIRouter()
+long_query_cache = {}
+cache_lock = Lock()
 
-def generate_request_hash(request: UmbralRequest) -> str:
-    """Generate a unique hash for the request content."""
-    request_str = f"{request.fecha}:{request.dias}:{request.columna_entidad}"
-    return hashlib.md5(request_str.encode()).hexdigest()
+def generate_request_hash(request_model) -> str:
+    # Convierte el Pydantic model a dict y luego genera hash
+    return hashlib.md5(str(request_model.dict()).encode()).hexdigest()
+
+
+def async_query_task(request_hash: str, request_model, func):
+    try:
+        with cache_lock:
+            long_query_cache[request_hash] = {"status": "processing", "updated_at": datetime.now()}
+        result = func(request_model)
+        with cache_lock:
+            result_json = result.to_dict(orient="records")
+            long_query_cache[request_hash] = {"status": "finishi", "updated_at": datetime.now(), "data":result_json}
+
+    except Exception as e:
+        with cache_lock:
+            long_query_cache[request_hash] = {"status": "error", "message": str(e), "updated_at": datetime.now()}
+
+
+def check_or_start_task(request_model, func):
+    request_hash = generate_request_hash(request_model)
+    with cache_lock:
+        if request_hash in long_query_cache:
+            return long_query_cache[request_hash]
+    Thread(target=async_query_task, args=(request_hash, request_model, func)).start()
+    return {"status": "processing", "message": "working."}
+
      
 @router.post("/score")
 def execute_score(request: MasivoRequest):
@@ -42,9 +71,7 @@ def query_score(request: MasivoRequest):
     """Consulta de propensity score y devuelve los resultados."""
     try:
         data = propensy_score_licencia(request.fecha_inicio,request.fecha_fin)
-
         return data
-
     except ValueError as e:
         return {"status": "error", "message": str(e)}
     except Exception as e:
@@ -111,47 +138,31 @@ async def monitor_status(request_hash: str, status_queue: Queue):
 async def get_umbral_status_endpoint(request_hash: str):
     """Check the status of a query by its request hash."""
     return get_umbral_status(request_hash)
-
 @router.post("/licencias/query")
 def query_score(request: ConsultaLicenciaRequest):
-    """Consulta todos los datos de licencias."""
-    try:
-        data = consulta_licencia_from_rest(request)
-        return data
+    return check_or_start_task(request, consulta_licencia_from_rest)
 
-    except ValueError as e:
-        return {"status": "error", "message": str(e)}
-    except Exception as e:
-        return {"status": "error", "message": f"Error inesperado: {str(e)}"}
-    
 
 @router.post("/semaforo")
 def procesar_semaforo_endpoint(request: SemaforoRequest):
-    """
-    Endpoint para procesar datos médicos con SemaforoWatson.
-    
-    Args:
-        request (SemaforoRequest): Parámetros de la solicitud (mes, anio, etc.).
-    
-    """
-    try:
-        df_calculos = consulta_semaforo_from_rest(request) 
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Error a obtener datos para semaforo: {str(e)}")
-    
-    # Procesar los datos con el método procesar_datos_medicos
-    try:
+    rango = f"{request.anio}-{request.mes:02d}"
+    resultado = consulta_semaforo(rango, None)
+    if len(resultado)>0:
+        return resultado
+
+    def semaforo_func(req_model):
+        df_calculos = consulta_semaforo_from_rest(req_model)
         resultado = procesar_semaforo(
             df_calculos=df_calculos,
-            mes=request.mes,
-            anio=request.anio,
-            sort_values_by=request.sort_values_by,
-            umbral_decorte=request.umbral_decorte,
-            rn_ln_mes=request.rn_ln_mes,
-            umbral_deanomalias=request.umbral_deanomalias
+            mes=req_model.mes,
+            anio=req_model.anio,
+            sort_values_by=req_model.sort_values_by,
+            umbral_decorte=req_model.umbral_decorte,
+            rn_ln_mes=req_model.rn_ln_mes,
+            umbral_deanomalias=req_model.umbral_deanomalias
         )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error al procesar los datos: {str(e)}")
+        return resultado
     
-    # Convertir el DataFrame a JSON
-    return resultado.to_dict(orient="records")
+    resultado = check_or_start_task(request, semaforo_func)
+    return resultado
+     

@@ -140,4 +140,4 @@ WHERE
     AND u.score_n_remotas_30d IS NOT NULL
     AND u.score_n_presenciales_30d IS NOT NULL
     AND a.anomaly_score IS NOT NULL
-    AND a.propensity_score_iforest IS NOT NULL;
+    AND a.propensity_score_iforest IS NOT NULL
