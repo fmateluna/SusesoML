@@ -289,3 +289,6 @@ GRANT SELECT ON TABLE ml.profesionalidad_medicos TO consultor;
 
 GRANT ALL ON SCHEMA ml TO dba_suseso;
 GRANT USAGE ON SCHEMA ml TO consultor;
+
+
+CREATE INDEX idx_empresa_rut_numtrab ON ml.empresa(rut_empresa, num_trabajadores);

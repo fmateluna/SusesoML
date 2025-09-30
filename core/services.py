@@ -222,8 +222,10 @@ def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_me
         "fecha_inicio": fecha_date,
         "windows_days": dias,
     }
+    start_time = time.time()
     result = execute_query("./sql/datos_umbral.sql", query_params)
-    return result
+    execution_time = time.time() - start_time
+    return result, execution_time
 
 def manage_umbral_status(
     request_hash: str,

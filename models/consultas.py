@@ -25,6 +25,7 @@ class SemaforoRequest(BaseModel):
     umbral_decorte: Optional[float] = 0.6
     rn_ln_mes: Optional[int] = 2
     umbral_deanomalias: Optional[float] = 0.5
+    rut_medico: Optional[str] = None
     content_type: Optional[str] = "csv"
 
 # Modelo para validar la entrada

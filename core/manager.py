@@ -184,8 +184,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 fecha=fecha,
                 dias=dias,
                 entidad=columna_entidad,
-                status="error",
-                message=str(e)
+                status="error"
             )
         )
 
@@ -200,6 +199,7 @@ def consulta_semaforo_from_rest(request: SemaforoRequest):
     where_query = ConsultaLicenciaRequest(
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
+        rut_medico=request.rut_medico,
         content_type=request.content_type
     )
 

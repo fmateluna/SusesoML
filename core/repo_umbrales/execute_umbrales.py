@@ -120,4 +120,4 @@ def process_umbral_and_save_db(data_df, result_csv_path,dias,entity_col):
         logger.info(f"Resultado guardado en {result_csv_path}")
 
     except Exception as e:
-        logger.error(f"Error en la ejecución standalone: {str(e)}")    
+        logger.error(f"Error en la ejecución UMBRALES, no fue posible guardar en base de datos: {str(e)}")    

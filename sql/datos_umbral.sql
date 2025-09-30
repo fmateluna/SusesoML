@@ -19,7 +19,10 @@ INNER JOIN ml.licencia_diagnostico_especialidad lde
     ON lde.id_licencia = l.id_lic
 LEFT JOIN ml.empresa e 
     ON e.rut_empresa = l.rut_empleador
+LEFT JOIN ml.umbrales u
+    ON u.id_lic = l.id_lic
 WHERE 
     l.fecha_emision BETWEEN 
         DATE_TRUNC('day', CAST(:fecha_inicio AS TIMESTAMP)) - INTERVAL ':windows_days days' 
         AND DATE_TRUNC('day', CAST(:fecha_inicio AS TIMESTAMP)) + INTERVAL '1 day' - INTERVAL '1 second'
+    AND u.id_lic IS NULL;

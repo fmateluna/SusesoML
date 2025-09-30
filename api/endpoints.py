@@ -126,9 +126,7 @@ async def monitor_status(request_hash: str, status_queue: Queue):
                 fecha=status_update.get("fecha"),
                 dias=status_update.get("dias"),
                 entidad=status_update.get("entidad"),
-                status=status_update["status"],
-                execution_time=status_update.get("execution_time"),
-                message=status_update.get("message")
+                status=status_update["status"]
             )
             if status_update["status"] in ["finish", "error"]:
                 break
@@ -146,7 +144,7 @@ def query_score(request: ConsultaLicenciaRequest):
 @router.post("/semaforo")
 def procesar_semaforo_endpoint(request: SemaforoRequest):
     rango = f"{request.anio}-{request.mes:02d}"
-    resultado = consulta_semaforo(rango, None)
+    resultado = consulta_semaforo(rango, request.rut_medico)
     if len(resultado)>0:
         return resultado
 
