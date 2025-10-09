@@ -59,7 +59,7 @@ class AdmisibilidadConfig:
     path_denuncias_pae: str
     path_relatos: str
     path_detalle_uclm: str
-    #path_lme: str
+    path_lme: str
 
     enc_relatos: Optional[str] = None
     enc_detalle_uclm: Optional[str] = None
@@ -123,7 +123,8 @@ class AdmisibilidadProcessor:
         )
 
         logger.info("Loading From DataBase LME...")
-        lme = self.consulta_base_lme(7,2025)
+        #lme = self.consulta_base_lme(7,2025)
+        lme = _read_tabular(self.cfg.path_lme)
 
         return df, denuncias, relatos, detalle, lme
     

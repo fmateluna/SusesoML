@@ -46,7 +46,7 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int) -> Admisi
     path_denuncias_pae = f"{base_path}/{paths['denuncias_pae'].replace('YYYY', path_anio).replace('MM', path_mes)}"
     path_relatos = f"{base_path}/{paths['relatos'].replace('YYYY', path_anio).replace('MM', path_mes)}"
     path_detalle_uclm = f"{base_path}/{paths['detalle_uclm'].replace('YYYY', path_anio).replace('MM', path_mes)}"
-    # path_lme = f"{base_path}/{paths['lme'].replace('YYYY', path_anio).replace('MM', path_mes)}"
+    path_lme = f"{base_path}/{paths['lme'].replace('YYYY', path_anio).replace('MM', path_mes)}"
 
 
     return AdmisibilidadConfig(
@@ -54,6 +54,7 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int) -> Admisi
         path_denuncias_pae,
         path_relatos,
         path_detalle_uclm,       
+        path_lme,
         enc_relatos=encoding.get("relatos"),
         enc_detalle_uclm=encoding.get("detalle_uclm"),
         sep_denuncias_pae=csv_sep.get("denuncias_pae", "|"),
