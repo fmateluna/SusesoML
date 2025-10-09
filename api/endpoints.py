@@ -13,9 +13,10 @@ from fastapi import APIRouter
 from threading import Thread, Lock
 from datetime import datetime
 import hashlib
+from core.repo_reclamos.reclamos import lee_reclamos
 from core.semaforo import procesar_semaforo
 from core.services import  consulta_semaforo, get_umbral_status, manage_umbral_status
-from models.consultas import ConsultaLicenciaRequest, MasivoRequest, SemaforoRequest, UmbralRequest
+from models.consultas import ConsultaLicenciaRequest, MasivoRequest, ReclamosRequest, SemaforoRequest, UmbralRequest
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -146,3 +147,6 @@ def procesar_semaforo_endpoint(request: SemaforoRequest):
     resultado = check_or_start_task(request, semaforo_func)
     return resultado
      
+@router.post("/licencias/reclamos")
+def query_score(request: ReclamosRequest):
+    return lee_reclamos(request)     

@@ -1,0 +1,38 @@
+paths:
+  # OUTPUT C1 select SEMAFORO 
+  df_to_semaforo: './standalone/reclamos/df_to_semaforo-julio.csv'
+  # ARCHIVOS UCLM:
+  denuncias_pae: "./standalone/reclamos/PRODUCCIÓN UCLM_072025_v2.csv"
+  relatos: "./standalone/reclamos/relato_uclm_24072025.xlsx" # deberia ser .csv? 
+  detalle_uclm: "./standalone/reclamos/SabanaUCLMDetalle_40214_2025-7-22_5-20-2.csv"
+  # SABANA LME: select licencias
+  lme: './standalone/reclamos/lme_capacitacion.csv'
+encoding:
+  relatos: "latin-1"
+  detalle_uclm: "latin-1"
+
+csv_sep:
+  denuncias_pae: ","
+  detalle_uclm: "|"
+  relatos: ","
+
+filters:
+  causal_homologada: "Denuncia a profesional emisor"
+  mes_a_revisar: 6
+  anio: 2025
+
+semaforo:
+  meses: [4, 5, 6, 7]
+  rn_ln_mes: 400
+  umbral_decorte: 0.5
+  umbral_deanomalias: 0.5
+  sort_values_by: "um"
+
+prioritization:
+  ordenar_por: "Fecha"  # or "Priorización"
+  umbral_de_priorizacion: 0.94
+  output_filename: "./standalone/reclamos/RESULTADOS.csv"
+
+nlp:
+  enabled: true
+  model: "es_core_news_sm"  # must be installed separately

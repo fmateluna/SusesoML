@@ -10,7 +10,6 @@ from typing import List, Tuple
 import logging
 from models.consultas import ConsultaLicenciaRequest
 from datetime import datetime
-
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -572,3 +571,17 @@ def consulta_semaforo(rango: str = None, rut_medico: str = None) -> list[dict]:
         raise ValueError(f"Error al consultar semáforo: {str(e)}")
     finally:
         session.close()
+
+def consulta_licencias_periodo(anio: int, mes: int) -> list[dict]:
+    """
+    Retorna un DataFrame con las licencias filtradas por año y mes.
+    """
+    session = SessionLocal()
+    try:
+        query = read_sql_file("./sql/consulta_licencias_periodo.sql")
+        params = {"anio": str(anio), "mes": f"{mes:02d}"}
+        result = session.execute(text(query), params).fetchall()
+        return [dict(r._mapping) for r in result]
+    except SQLAlchemyError as e:
+        logger.error(f"Error al consultar licencias periodo: {str(e)}")
+        raise ValueError(f"Error al consultar licencias periodo: {str(e)}")
