@@ -50,11 +50,29 @@ def get_model(model_path):
     return _model_cache[model_path]
 
 
+def preload_models(base_path):
+    """Precarga todos los modelos en memoria al inicio."""
+    models = [
+        'umbral_model_frecuencia_medico_7D.pkl',
+        'umbral_model_frecuencia_medico_15D.pkl',
+        'umbral_model_frecuencia_medico_30D.pkl',
+        'umbral_model_frecuencia_F_30D_medico.pkl',
+        'umbral_model_frecuencia_J_30D_medico.pkl',
+        'umbral_model_frecuencia_M_30D_medico.pkl',
+        'umbral_model_n_remotas_30D.pkl',
+        'umbral_model_n_presenciales_30D.pkl'
+    ]
+    for m in models:
+        path = os.path.join(base_path, m)
+        get_model(path)  # carga y mete a _model_cache
+    logger.info("Todos los modelos precargados en memoria.")
+
+
 def apply_model(df, config):
     """Función para aplicar un modelo usando cache."""
     model_path = config['path']
     try:
-        model = get_model(model_path)  # Para no cargarlo siempre, lo dejo en cache
+        model = get_model(model_path)  # Usa cache en lugar de disco
         logger.info(f"Ejecutando MODELO {model_path}")
 
         if hasattr(model, 'window_days') and model.window_days != config['days']:
@@ -75,18 +93,24 @@ def apply_model(df, config):
         logger.error(f"Error al aplicar modelo {model_path}: {str(e)}")
         return df
     
+
 def process_umbral_data(df, entity_col='rut_medico', base_path=None):
     try:
         if base_path is None:
             # Obtener el directorio del archivo Python actual de manera dinámica
             base_path = os.path.dirname(os.path.abspath(__file__)) + '/'        
+
+        # Precargar todos los modelos una sola vez
+        if not _model_cache:  
+            preload_models(base_path)
+
         # Aplicar filtros iniciales
         df = df[df['dias_reposo'] <= 365]
         df = df[~df['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
         df['fecha_emision'] = pd.to_datetime(df['fecha_emision'], errors='coerce')
         df = df.sort_values(by=[entity_col, 'rut_trabajador', 'fecha_emision']).reset_index(drop=True)
 
-        # Lista de modelos
+        # Lista de modelos con config
         models_config = [
             {'path': base_path + 'umbral_model_frecuencia_medico_7D.pkl', 'days': 7},
             {'path': base_path + 'umbral_model_frecuencia_medico_15D.pkl', 'days': 15},
@@ -97,6 +121,7 @@ def process_umbral_data(df, entity_col='rut_medico', base_path=None):
             {'path': base_path + 'umbral_model_n_remotas_30D.pkl', 'days': 30},
             {'path': base_path + 'umbral_model_n_presenciales_30D.pkl', 'days': 30}
         ]        
+
         # Aplicar modelos secuencialmente sobre el mismo df
         for config in models_config:
             df = apply_model(df, config)
@@ -107,17 +132,12 @@ def process_umbral_data(df, entity_col='rut_medico', base_path=None):
         logger.error(f"Error procesando datos de umbral: {str(e)}")
         raise
 
-def process_umbral_and_save_db(data_df, result_csv_path,dias,entity_col):
+
+def process_umbral_and_save_db(data_df, dias, entity_col):
     sys.modules['__main__'].Umbrales = Umbrales
     try:
-
         df_processed = process_umbral_data(data_df)
         logger.info("Procesamiento completado. DataFrame procesado:")
-        # print(df_processed)
-
-        # df_processed.to_csv(result_csv_path, index=False)
         insert_umbrales(df_processed, fecha=data_df['fecha_emision'], dias=dias, columna_entidad=entity_col)
-        logger.info(f"Resultado guardado en {result_csv_path}")
-
     except Exception as e:
-        logger.error(f"Error en la ejecución UMBRALES, no fue posible guardar en base de datos: {str(e)}")    
+        logger.error(f"Error en la ejecución UMBRALES, no fue posible guardar en base de datos: {str(e)}")

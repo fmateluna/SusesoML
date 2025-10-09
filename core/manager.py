@@ -1,12 +1,13 @@
+from threading import Lock
 import calendar
-from datetime import date
+from datetime import date, datetime
 from fastapi.encoders import jsonable_encoder
 from core.anomalias import calcular_anomalias
 from core.manager_score import ManagerPickle
 from core.manager_umbral import process_umbral_data
 from core.repo_umbrales.execute_umbrales import process_umbral_and_save_db
 from core.semaforo import procesar_semaforo
-from core.services import consulta_licencia, consulta_semaforo, query_masivo,query_score_licencia,query_data_umbral,manage_umbral_status
+from core.services import consulta_licencia, consulta_semaforo, manage_umbral_status, query_masivo,query_score_licencia,query_data_umbral
 import logging
 import os
 import csv
@@ -25,6 +26,44 @@ logger = logging.getLogger(__name__)
 
 from fastapi.responses import StreamingResponse
 import io
+
+umbral_cache = {}
+cache_lock = Lock()
+
+
+
+def manage_umbral_status_cache(
+    request_hash: str,
+    fecha: str,
+    dias: int,
+    entidad: str,
+    status: str
+) -> dict:
+    """
+    Inserta o actualiza el estado en el cache global y devuelve el registro.
+    """
+    record = {
+        "status": status,
+        "request_hash": request_hash,
+        "fecha": fecha,
+        "dias": dias,
+        "entidad": entidad,
+        "created_at": datetime.now().isoformat()
+    }
+
+    # Actualiza cache de manera segura
+    with cache_lock:
+        umbral_cache[request_hash] = record
+
+    return record
+
+
+def get_umbral_status_cache(request_hash: str) -> dict | None:
+    """
+    Recupera un registro desde el cache global.
+    """
+    with cache_lock:
+        return umbral_cache.get(request_hash)
 
 def to_csv_str(df):
     buffer = io.StringIO()
@@ -80,9 +119,9 @@ def propensy_score_licencia(fecha_inicio: str, fecha_fin: str):
     return from_db
 
 def generate_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico"):
-    data, execution_time = query_data_umbral(fecha, dias, columna_entidad)
+    data = query_data_umbral(fecha, dias, columna_entidad)
     if not data:
-        return pd.DataFrame(), execution_time
+        return pd.DataFrame()
     df = pd.DataFrame(data, columns=[
         "id_licencia",
         "folio",
@@ -101,7 +140,7 @@ def generate_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut
         "n_trabajadores"
     ])
     processed_df = process_umbral_data(df, entity_col=columna_entidad)
-    return processed_df, execution_time
+    return processed_df
 
 def makeKeyFromFechas(fecha_inicio: str, fecha_fin: str):
     """
@@ -129,7 +168,7 @@ def consulta_licencia_from_rest(where_query: ConsultaLicenciaRequest):
 
 
 def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_hash: str, status_queue: Queue) -> None:
-    """Process the umbral query, apply calculations, and save results to CSV."""
+
     try:
 
         status_queue.put(
@@ -142,8 +181,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
             )
         )
         # Ejecutar consulta y procesar datos
-        data_df, execution_time = generate_data_umbral(fecha, dias, columna_entidad)
-
+        data_df = generate_data_umbral(fecha, dias, columna_entidad)
 
         status_queue.put(
             manage_umbral_status(
@@ -154,8 +192,8 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 status="process_data"
             )
         )
-        result_csv_path = f"./umbrales_csv/{fecha}/{columna_entidad}/{dias}/results.csv"
-        process_umbral_and_save_db(data_df, result_csv_path,dias,columna_entidad)        
+
+        process_umbral_and_save_db(data_df,dias,columna_entidad)        
 
         status_queue.put(
             manage_umbral_status(

@@ -10,11 +10,6 @@ from typing import List, Tuple
 import logging
 from models.consultas import ConsultaLicenciaRequest
 from datetime import datetime
-from threading import Lock
-
-
-umbral_cache = {}
-cache_lock = Lock()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -212,7 +207,7 @@ def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> List[dict]:
         logger.error(f"Error ejecutando query_score_licencia: {str(e)}")
         raise
 
-def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> Tuple[List]:
+def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> List[List]:
     """Ejecuta consulta de umbral y retorna resultados con tiempo de ejecución."""
     try:
         fecha_date = datetime.strptime(fecha, "%Y-%m-%d").date()
@@ -222,46 +217,11 @@ def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_me
         "fecha_inicio": fecha_date,
         "windows_days": dias,
     }
-    start_time = time.time()
     result = execute_query("./sql/datos_umbral.sql", query_params)
-    execution_time = time.time() - start_time
-    return result, execution_time
+    return result
+
 
 def manage_umbral_status(
-    request_hash: str,
-    fecha: str,
-    dias: int,
-    entidad: str,
-    status: str
-) -> dict:
-    """
-    Inserta o actualiza el estado en el cache global y devuelve el registro.
-    """
-    record = {
-        "status": status,
-        "request_hash": request_hash,
-        "fecha": fecha,
-        "dias": dias,
-        "entidad": entidad,
-        "created_at": datetime.now().isoformat()
-    }
-
-    # Actualiza cache de manera segura
-    with cache_lock:
-        umbral_cache[request_hash] = record
-
-    return record
-
-
-def get_umbral_status(request_hash: str) -> dict | None:
-    """
-    Recupera un registro desde el cache global.
-    """
-    with cache_lock:
-        return umbral_cache.get(request_hash)
-
-
-def manage_umbral_status_dba(
     request_hash: str,
     fecha: str,
     dias: int,
@@ -478,6 +438,7 @@ def insert_anomalias(results: pd.DataFrame) -> None:
         raise ValueError(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
     finally:
         session.close()
+
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
     Ejecuta la consulta de licencias con filtros opcionales, incluyendo columnas de ml.anomalias no redundantes.

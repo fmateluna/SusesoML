@@ -1,6 +1,22 @@
 {
     "version": "0.2.0",
     "configurations": [
+        {
+            "name": "TEST_RECLAMON",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/standalone/reclamos/reclamon.py",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,            
+        },  
+        {
+            "name": "TEST_RECLAMOS",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/standalone/reclamos/main.py",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,            
+        },  
                 {
             "name": "TEST_ANOMALIAS",
             "type": "python",

@@ -161,7 +161,7 @@ if __name__ == "__main__":
 
     # Filtros iniciales sugeridos
     df_licencias = df_licencias[df_licencias['dias_reposo'] <= 365]
-    df_licencias = df_licencias[~df_licencias['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
+    #df_licencias = df_licencias[~df_licencias['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
     df_licencias['fecha_emision'] = pd.to_datetime(df_licencias['fecha_emision'], errors='coerce')
     df_licencias = df_licencias.sort_values(by=['rut_medico', 'rut_trabajador', 'fecha_emision']).reset_index(drop=True)
 

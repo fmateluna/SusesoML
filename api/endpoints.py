@@ -5,7 +5,7 @@ import asyncio
 import time
 from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel
-from core.manager import FORMAT_DISPATCHER, consulta_licencia_from_rest, consulta_semaforo_from_rest, process_umbral_task, propensy_score,propensy_score_licencia, to_csv, to_json
+from core.manager import FORMAT_DISPATCHER, consulta_licencia_from_rest, consulta_semaforo_from_rest,  process_umbral_task, propensy_score,propensy_score_licencia
 from typing import Optional
 import hashlib
 import logging
@@ -14,7 +14,7 @@ from threading import Thread, Lock
 from datetime import datetime
 import hashlib
 from core.semaforo import procesar_semaforo
-from core.services import consulta_licencia, consulta_semaforo, get_umbral_status, manage_umbral_status
+from core.services import  consulta_semaforo, get_umbral_status, manage_umbral_status
 from models.consultas import ConsultaLicenciaRequest, MasivoRequest, SemaforoRequest, UmbralRequest
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,8 +24,8 @@ router = APIRouter()
 status_store = {}
 
 router = APIRouter()
-long_query_cache = {}
 cache_lock = Lock()
+long_query_cache = {}
 
 def generate_request_hash(request_model) -> str:
     # Convierte el Pydantic model a dict y luego genera hash
@@ -78,15 +78,16 @@ def query_score(request: MasivoRequest):
         return {"status": "error", "message": f"Error inesperado: {str(e)}"}
     
 @router.post("/umbral/create")
-async def create_umbral(request: UmbralRequest, background_tasks: BackgroundTasks):
+async def create_umbral(request: UmbralRequest):
     """Inicia una consulta de umbral y registra su estado en ml.umbral_data."""
     try:
         request_hash = generate_request_hash(request)
 
         # Consultar si el estado ya existe
         status = get_umbral_status(request_hash)
-        if status["status"] != "not_found" or status["status"]=="finish":
-            return status
+        if status is not None:
+            if status["status"] != "not_found" and status["status"] != "error" :
+                return status
 
         # Registrar estado inicial
         manage_umbral_status(
@@ -105,37 +106,18 @@ async def create_umbral(request: UmbralRequest, background_tasks: BackgroundTask
         )
         process.start()
 
-        background_tasks.add_task(monitor_status, request_hash, status_queue)
-
-        return {
-            "status": "init",
-            "request_hash": request_hash
-        }
+        return get_umbral_status(request_hash)
 
     except Exception as e:
         logger.error(f"Error initiating request: {str(e)}")
         return {"status": "error", "message": f"Error inesperado: {str(e)}"}
 
-async def monitor_status(request_hash: str, status_queue: Queue):
-    """Monitor the status of the background task."""
-    while True:
-        if not status_queue.empty():
-            status_update = status_queue.get()
-            manage_umbral_status(
-                request_hash=status_update["request_hash"],
-                fecha=status_update.get("fecha"),
-                dias=status_update.get("dias"),
-                entidad=status_update.get("entidad"),
-                status=status_update["status"]
-            )
-            if status_update["status"] in ["finish", "error"]:
-                break
-        await asyncio.sleep(0.1)
 
 @router.get("/umbral/status/{request_hash}")
 async def get_umbral_status_endpoint(request_hash: str):
     """Check the status of a query by its request hash."""
     return get_umbral_status(request_hash)
+
 @router.post("/licencias/query")
 def query_score(request: ConsultaLicenciaRequest):
     return check_or_start_task(request, consulta_licencia_from_rest)
