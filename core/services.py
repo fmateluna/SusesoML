@@ -10,6 +10,7 @@ from typing import List, Tuple
 import logging
 from models.consultas import ConsultaLicenciaRequest
 from datetime import datetime
+from core.utils.db_utils import db_session
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -42,23 +43,12 @@ def read_sql_file(file_path: str) -> str:
     with open(file_path, "r", encoding='utf-8') as file:
         return file.read()
 
-def execute_query(file_path: str, params: dict) -> List[Tuple]:
+@db_session
+def execute_query(session, file_path: str, params: dict) -> List[Tuple]:
     """Ejecuta una consulta SQL desde un archivo con parámetros proporcionados."""
-    session = SessionLocal()
-    try:
-        query = read_sql_file(file_path)
-        result = session.execute(text(query).params(**params)).fetchall()
-        return result
-    except SQLAlchemyError as e:
-        session.rollback()
-        logger.error(f"Error en la ejecución de la consulta SQL: {str(e)}")
-        raise ValueError(f"Error en la ejecución de la consulta SQL: {str(e)}") from e
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Error inesperado: {str(e)}")
-        raise ValueError(f"Error inesperado: {str(e)}") from e
-    finally:
-        session.close()
+    query = read_sql_file(file_path)
+    result = session.execute(text(query).params(**params)).fetchall()
+    return result
 
 def query_regla_negocio(
     cod_diagnostico_principal: str, 
@@ -87,44 +77,32 @@ def query_regla_negocio(
         logger.error(f"Error ejecutando query_regla_negocio: {str(e)}")
         raise
 
-def update_propensity_score_licencias(results: pd.DataFrame, score_column: str, rn: int) -> None:
+@db_session
+def update_propensity_score_licencias(session, results: pd.DataFrame, score_column: str, rn: int) -> None:
     """
     Actualiza la tabla ml.propensity_score con un lote de resultados.
     """
-    session = SessionLocal()
-    try:
-        if results.empty or score_column not in results.columns:
-            logger.error(f"Datos vacíos o columna {score_column} no encontrada")
-            return
-        upsert_query = """
-        INSERT INTO ml.propensity_score (id_lic, folio, rn, score)
-        VALUES (:id_lic, :folio, :rn, :score)
-        ON CONFLICT (id_lic, rn) DO UPDATE
-        SET score = EXCLUDED.score
-        """
-        params_list = [
-            {
-                'id_lic': row['id_licencia'],
-                'folio': row['folio'],
-                'rn': rn,
-                'score': row[score_column]
-            }
-            for _, row in results.iterrows()
-        ]
-        session.execute(text(upsert_query), params_list)
-        session.commit()
-        successful_ids = [row['id_licencia'] for _, row in results.iterrows()]
-        logger.info(f"Registros insertados exitosamente: {len(successful_ids)} IDs")
-    except SQLAlchemyError as e:
-        session.rollback()
-        logger.error(f"Error al actualizar ml.propensity_score: {str(e)}")
-        raise ValueError(f"Error al actualizar ml.propensity_score: {str(e)}")
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Error inesperado al actualizar ml.propensity_score: {str(e)}")
-        raise ValueError(f"Error inesperado al actualizar ml.propensity_score: {str(e)}")
-    finally:
-        session.close()
+    if results.empty or score_column not in results.columns:
+        logger.error(f"Datos vacíos o columna {score_column} no encontrada")
+        return
+    upsert_query = """
+    INSERT INTO ml.propensity_score (id_lic, folio, rn, score)
+    VALUES (:id_lic, :folio, :rn, :score)
+    ON CONFLICT (id_lic, rn) DO UPDATE
+    SET score = EXCLUDED.score
+    """
+    params_list = [
+        {
+            'id_lic': row['id_licencia'],
+            'folio': row['folio'],
+            'rn': rn,
+            'score': row[score_column]
+        }
+        for _, row in results.iterrows()
+    ]
+    session.execute(text(upsert_query), params_list)
+    successful_ids = [row['id_licencia'] for _, row in results.iterrows()]
+    logger.info(f"Registros insertados exitosamente: {len(successful_ids)} IDs")
 
 def query_masivo(fecha_inicio: str, fecha_fin: str) -> pd.DataFrame:
     """Ejecuta consulta masiva de licencias en un rango de fechas."""
@@ -220,7 +198,23 @@ def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_me
     return result
 
 
+@db_session
+def clear_umbral_data_table(session) -> None:
+    """
+    Vacía la tabla ml.umbral_data.
+    """
+    try:
+        session.execute(text("TRUNCATE TABLE ml.umbral_data;"))
+        session.commit()
+        logger.info("Tabla ml.umbral_data vaciada exitosamente.")
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"Error al vaciar la tabla ml.umbral_data: {e}")
+        raise
+
+@db_session
 def manage_umbral_status(
+    session,
     request_hash: str,
     fecha: str,
     dias: int,
@@ -230,213 +224,175 @@ def manage_umbral_status(
     """
     Inserta o actualiza el estado en la tabla ml.umbral_data y devuelve el registro.
     """
-    session = SessionLocal()
-    try:
-        upsert_query = """
-        INSERT INTO ml.umbral_data (hash, fecha, dias, entidad, estado, created_at)
-        VALUES (:hash, :fecha, :dias, :entidad, :estado, :created_at)
-        ON CONFLICT (hash) DO UPDATE
-        SET estado = EXCLUDED.estado,
-            created_at = EXCLUDED.created_at
-        RETURNING hash, fecha, dias, entidad, estado, created_at
-        """
-        params = {
-            "hash": request_hash,
-            "fecha": fecha,
-            "dias": dias,
-            "entidad": entidad,
-            "estado": status,
-            "created_at": datetime.now()
-        }
-        result = session.execute(text(upsert_query), params).fetchone()
-        session.commit()
-        if not result:
-            raise ValueError("No se pudo registrar o actualizar el estado en ml.umbral_data")
-        return {
-            "status": result.estado,
-            "request_hash": result.hash,
-            "fecha": result.fecha,
-            "dias": result.dias,
-            "entidad": result.entidad,
-            "created_at": result.created_at.isoformat()
-        }
-    except SQLAlchemyError as e:
-        session.rollback()
-        logger.error(f"Error al gestionar estado en ml.umbral_data: {str(e)}")
-        raise ValueError(f"Error al gestionar estado: {str(e)}")
-    finally:
-        session.close()
+    clear_umbral_data_table(session)
+    upsert_query = """
+    INSERT INTO ml.umbral_data (hash, fecha, dias, entidad, estado, created_at)
+    VALUES (:hash, :fecha, :dias, :entidad, :estado, :created_at)
+    ON CONFLICT (hash) DO UPDATE
+    SET estado = EXCLUDED.estado,
+        created_at = EXCLUDED.created_at
+    RETURNING hash, fecha, dias, entidad, estado, created_at
+    """
+    params = {
+        "hash": request_hash,
+        "fecha": fecha,
+        "dias": dias,
+        "entidad": entidad,
+        "estado": status,
+        "created_at": datetime.now()
+    }
+    result = session.execute(text(upsert_query), params).fetchone()
+    if not result:
+        raise ValueError("No se pudo registrar o actualizar el estado en ml.umbral_data")
+    return {
+        "status": result.estado,
+        "request_hash": result.hash,
+        "fecha": result.fecha,
+        "dias": result.dias,
+        "entidad": result.entidad,
+        "created_at": result.created_at.isoformat()
+    }
 
-def get_umbral_status(request_hash: str) -> dict:
+@db_session
+def get_umbral_status(session, request_hash: str) -> dict:
     """Consulta el estado de un request_hash en la tabla ml.umbral_data."""
-    session = SessionLocal()
-    try:
-        query = """
-        SELECT hash, fecha, dias, entidad, estado, created_at
-        FROM ml.umbral_data
-        WHERE hash = :hash
-        """
-        result = session.execute(text(query), {"hash": request_hash}).fetchone()
-        if not result:
-            return {"status": "not_found", "message": "Request hash not found"}
-        return {
-            "status": result.estado,
-            "request_hash": result.hash,
-            "fecha": result.fecha,
-            "dias": result.dias,
-            "entidad": result.entidad,
-            "created_at": result.created_at.isoformat()
-        }
-    except SQLAlchemyError as e:
-        logger.error(f"Error al consultar estado en ml.umbral_data: {str(e)}")
-        raise ValueError(f"Error al consultar estado: {str(e)}")
-    finally:
-        session.close()
+    query = """
+    SELECT hash, fecha, dias, entidad, estado, created_at
+    FROM ml.umbral_data
+    WHERE hash = :hash
+    """
+    result = session.execute(text(query), {"hash": request_hash}).fetchone()
+    if not result:
+        return {"status": "not_found", "message": "Request hash not found"}
+    return {
+        "status": result.estado,
+        "request_hash": result.hash,
+        "fecha": result.fecha,
+        "dias": result.dias,
+        "entidad": result.entidad,
+        "created_at": result.created_at.isoformat()
+    }
 
-def insert_umbrales(results: pd.DataFrame, fecha: str, dias: int, columna_entidad: str) -> None:
+@db_session
+def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, columna_entidad: str) -> None:
     """
     Inserta los datos procesados de umbrales en la tabla ml.umbrales.
     """
-    session = SessionLocal()
-    try:
-        if results.empty:
-            logger.warning("DataFrame vacío, no se insertan datos en ml.umbrales")
-            return
-        results['fecha'] = fecha
-        results['dias'] = dias
-        results['columna_entidad'] = columna_entidad
-        if 'id_licencia' in results.columns:
-            results = results.rename(columns={'id_licencia': 'id_lic'})
-        expected_columns = [
-            'id_lic', 'folio', 'fecha', 'dias', 'columna_entidad',
-            'dias_reposo', 'fecha_emision', 'fecha_inicio_reposo',
-            'especialidad_profesional', 'cod_diagnostico_principal',
-            'rut_medico', 'rut_trabajador', 'marca_otorgamiento',
-            'frecuencia_medico_30D', 'frecuencia_medico_15D', 'frecuencia_medico_7D',
-            'frecuencia_J_30D_medico', 'frecuencia_F_30D_medico', 'frecuencia_M_30D_medico',
-            'n_remotas_30D', 'n_presenciales_30D',
-            'score_frecuencia_medico_7D', 'score_frecuencia_medico_15D',
-            'score_frecuencia_medico_30D', 'score_frecuencia_F_30D_medico',
-            'score_frecuencia_J_30D_medico', 'score_frecuencia_M_30D_medico',
-            'score_n_remotas_30D', 'score_n_presenciales_30D'
-        ]
-        for col in expected_columns:
-            if col not in results.columns:
-                if 'score_' in col:
-                    results[col] = 0.0
-                else:
-                    logger.warning(f"Columna {col} no encontrada en DataFrame, se seteará a NULL")
-                    results[col] = None
-        upsert_query = """
-        INSERT INTO ml.umbrales (
-            id_lic, folio, fecha, dias, columna_entidad,
-            dias_reposo, fecha_emision, fecha_inicio_reposo,
-            especialidad_profesional, cod_diagnostico_principal,
-            rut_medico, rut_trabajador, marca_otorgamiento,
-            frecuencia_medico_30D, frecuencia_medico_15D, frecuencia_medico_7D,
-            frecuencia_J_30D_medico, frecuencia_F_30D_medico, frecuencia_M_30D_medico,
-            n_remotas_30D, n_presenciales_30D,
-            score_frecuencia_medico_7D, score_frecuencia_medico_15D,
-            score_frecuencia_medico_30D, score_frecuencia_F_30D_medico,
-            score_frecuencia_J_30D_medico, score_frecuencia_M_30D_medico,
-            score_n_remotas_30D, score_n_presenciales_30D
-        ) VALUES (
-            :id_lic, :folio, :fecha, :dias, :columna_entidad,
-            :dias_reposo, :fecha_emision, :fecha_inicio_reposo,
-            :especialidad_profesional, :cod_diagnostico_principal,
-            :rut_medico, :rut_trabajador, :marca_otorgamiento,
-            :frecuencia_medico_30D, :frecuencia_medico_15D, :frecuencia_medico_7D,
-            :frecuencia_J_30D_medico, :frecuencia_F_30D_medico, :frecuencia_M_30D_medico,
-            :n_remotas_30D, :n_presenciales_30D,
-            :score_frecuencia_medico_7D, :score_frecuencia_medico_15D,
-            :score_frecuencia_medico_30D, :score_frecuencia_F_30D_medico,
-            :score_frecuencia_J_30D_medico, :score_frecuencia_M_30D_medico,
-            :score_n_remotas_30D, :score_n_presenciales_30D
-        )
-        ON CONFLICT (id_lic, dias, columna_entidad) DO NOTHING
-        """
-        params_list = [
-            {col: row.get(col, None) for col in expected_columns}
-            for _, row in results.iterrows()
-        ]
-        session.execute(text(upsert_query), params_list)
-        session.commit()
-        logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.umbrales")
-    except SQLAlchemyError as e:
-        session.rollback()
-        logger.error(f"Error al insertar en ml.umbrales: {str(e)}")
-        raise ValueError(f"Error al insertar en ml.umbrales: {str(e)}")
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Error inesperado al insertar en ml.umbrales: {str(e)}")
-        raise ValueError(f"Error inesperado al insertar en ml.umbrales: {str(e)}")
-    finally:
-        session.close()
+    if results.empty:
+        logger.warning("DataFrame vacío, no se insertan datos en ml.umbrales")
+        return
+    results['fecha'] = fecha
+    results['dias'] = dias
+    results['columna_entidad'] = columna_entidad
+    if 'id_licencia' in results.columns:
+        results = results.rename(columns={'id_licencia': 'id_lic'})
+    expected_columns = [
+        'id_lic', 'folio', 'fecha', 'dias', 'columna_entidad',
+        'dias_reposo', 'fecha_emision', 'fecha_inicio_reposo',
+        'especialidad_profesional', 'cod_diagnostico_principal',
+        'rut_medico', 'rut_trabajador', 'marca_otorgamiento',
+        'frecuencia_medico_30D', 'frecuencia_medico_15D', 'frecuencia_medico_7D',
+        'frecuencia_J_30D_medico', 'frecuencia_F_30D_medico', 'frecuencia_M_30D_medico',
+        'n_remotas_30D', 'n_presenciales_30D',
+        'score_frecuencia_medico_7D', 'score_frecuencia_medico_15D',
+        'score_frecuencia_medico_30D', 'score_frecuencia_F_30D_medico',
+        'score_frecuencia_J_30D_medico', 'score_frecuencia_M_30D_medico',
+        'score_n_remotas_30D', 'score_n_presenciales_30D'
+    ]
+    for col in expected_columns:
+        if col not in results.columns:
+            if 'score_' in col:
+                results[col] = 0.0
+            else:
+                logger.warning(f"Columna {col} no encontrada en DataFrame, se seteará a NULL")
+                results[col] = None
+    upsert_query = """
+    INSERT INTO ml.umbrales (
+        id_lic, folio, fecha, dias, columna_entidad,
+        dias_reposo, fecha_emision, fecha_inicio_reposo,
+        especialidad_profesional, cod_diagnostico_principal,
+        rut_medico, rut_trabajador, marca_otorgamiento,
+        frecuencia_medico_30D, frecuencia_medico_15D, frecuencia_medico_7D,
+        frecuencia_J_30D_medico, frecuencia_F_30D_medico, frecuencia_M_30D_medico,
+        n_remotas_30D, n_presenciales_30D,
+        score_frecuencia_medico_7D, score_frecuencia_medico_15D,
+        score_frecuencia_medico_30D, score_frecuencia_F_30D_medico,
+        score_frecuencia_J_30D_medico, score_frecuencia_M_30D_medico,
+        score_n_remotas_30D, score_n_presenciales_30D
+    ) VALUES (
+        :id_lic, :folio, :fecha, :dias, :columna_entidad,
+        :dias_reposo, :fecha_emision, :fecha_inicio_reposo,
+        :especialidad_profesional, :cod_diagnostico_principal,
+        :rut_medico, :rut_trabajador, :marca_otorgamiento,
+        :frecuencia_medico_30D, :frecuencia_medico_15D, :frecuencia_medico_7D,
+        :frecuencia_J_30D_medico, :frecuencia_F_30D_medico, :frecuencia_M_30D_medico,
+        :n_remotas_30D, :n_presenciales_30D,
+        :score_frecuencia_medico_7D, :score_frecuencia_medico_15D,
+        :score_frecuencia_medico_30D, :score_frecuencia_F_30D_medico,
+        :score_frecuencia_J_30D_medico, :score_frecuencia_M_30D_medico,
+        :score_n_remotas_30D, :score_n_presenciales_30D
+    )
+    ON CONFLICT (id_lic, dias, columna_entidad) DO NOTHING
+    """
+    params_list = [
+        {col: row.get(col, None) for col in expected_columns}
+        for _, row in results.iterrows()
+    ]
+    session.execute(text(upsert_query), params_list)
+    logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.umbrales")
 
-def insert_anomalias(results: pd.DataFrame) -> None:
+@db_session
+def insert_anomalias(session, results: pd.DataFrame) -> None:
     """
     Inserta los datos procesados de anomalías en la tabla ml.anomalias.
     Usa INSERT con ON CONFLICT DO NOTHING para manejar duplicados (basado en id_lic).
     """
-    session = SessionLocal()
-    try:
-        if results.empty:
-            logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
-            return
-        if 'id_licencia' in results.columns:
-            results = results.rename(columns={'id_licencia': 'id_lic'})
-        expected_columns = [
-            "id_lic", "rut_medico", "rut_trabajador", "rut_empleador", "dias_reposo",
-            "edad_trabajador", "hora_emision", "dia_codificado",
-            "calidad_trabajador_independiente", "calidad_trabajador_dependiente_privado",
-            "calidad_trabajador_publico_afecto", "calidad_trabajador_publico_no_afecto",
-            "recencia_trabajador", "frecuencia_trabajador_60d", "frecuencia_trabajador_40d",
-            "frecuencia_trabajador_20d", "reposo_trabajador_60d", "reposo_trabajador_40d",
-            "reposo_trabajador_20d", "n_medicos_distintos_xtrabajador_60d",
-            "n_empleadores_distintos_xtrabajador_60d", "desviacion_reposo_trabajador_60d",
-            "recencia_medico", "frecuencia_medico_30d", "frecuencia_medico_15d",
-            "frecuencia_medico_7d", "reposo_medico_30d", "reposo_medico_15d",
-            "reposo_medico_7d", "licencias_20_min", "licencias_40_min", "licencias_60_min",
-            "max_licencias_dia_30d", "frecuencia_j_30d_medico", "frecuencia_f_30d_medico",
-            "frecuencia_m_30d_medico", "max_rest_days_30d", "diferencia_dias",
-            "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60d",
-            "n_empleadores_distintos_xmedico_60d", "hhi_empleadores_por_medico_60d",
-            "n_remotas_30d", "n_presenciales_30d", "recencia_empleador",
-            "frecuencia_empleador_60d", "frecuencia_empleador_40d", "frecuencia_empleador_20d",
-            "reposo_empleador_60d", "reposo_empleador_40d", "reposo_empleador_20d",
-            "n_trabajadores_distintos_xempleador_60d", "n_medicos_distintos_xempleador_60d",
-            "frecuencia_j_30d_empleador", "frecuencia_f_30d_empleador", "frecuencia_m_30d_empleador",
-            "historial_trabajador_medico", "historial_empleador_medico", "ponderado_medico_trabajador",
-            "anomaly_score", "propensity_score_iforest"
-        ]
-        for col in expected_columns:
-            if col not in results.columns:
-                results[col] = None
-        upsert_query = f"""
-        INSERT INTO ml.anomalias (
-            {", ".join(expected_columns)}
-        ) VALUES (
-            {", ".join([f":{col}" for col in expected_columns])}
-        )
-        ON CONFLICT (id_lic) DO NOTHING
-        """
-        params_list = [
-            {col: row.get(col, None) for col in expected_columns}
-            for _, row in results.iterrows()
-        ]
-        session.execute(text(upsert_query), params_list)
-        session.commit()
-        logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.anomalias")
-    except SQLAlchemyError as e:
-        session.rollback()
-        logger.error(f"Error al insertar en ml.anomalias: {str(e)}")
-        raise ValueError(f"Error al insertar en ml.anomalias: {str(e)}")
-    except Exception as e:
-        session.rollback()
-        logger.error(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
-        raise ValueError(f"Error inesperado al insertar en ml.anomalias: {str(e)}")
-    finally:
-        session.close()
+    if results.empty:
+        logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
+        return
+    if 'id_licencia' in results.columns:
+        results = results.rename(columns={'id_licencia': 'id_lic'})
+    expected_columns = [
+        "id_lic", "rut_medico", "rut_trabajador", "rut_empleador", "dias_reposo",
+        "edad_trabajador", "hora_emision", "dia_codificado",
+        "calidad_trabajador_independiente", "calidad_trabajador_dependiente_privado",
+        "calidad_trabajador_publico_afecto", "calidad_trabajador_publico_no_afecto",
+        "recencia_trabajador", "frecuencia_trabajador_60d", "frecuencia_trabajador_40d",
+        "frecuencia_trabajador_20d", "reposo_trabajador_60d", "reposo_trabajador_40d",
+        "reposo_trabajador_20d", "n_medicos_distintos_xtrabajador_60d",
+        "n_empleadores_distintos_xtrabajador_60d", "desviacion_reposo_trabajador_60d",
+        "recencia_medico", "frecuencia_medico_30d", "frecuencia_medico_15d",
+        "frecuencia_medico_7d", "reposo_medico_30d", "reposo_medico_15d",
+        "reposo_medico_7d", "licencias_20_min", "licencias_40_min", "licencias_60_min",
+        "max_licencias_dia_30d", "frecuencia_j_30d_medico", "frecuencia_f_30d_medico",
+        "frecuencia_m_30d_medico", "max_rest_days_30d", "diferencia_dias",
+        "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60d",
+        "n_empleadores_distintos_xmedico_60d", "hhi_empleadores_por_medico_60d",
+        "n_remotas_30d", "n_presenciales_30d", "recencia_empleador",
+        "frecuencia_empleador_60d", "frecuencia_empleador_40d", "frecuencia_empleador_20d",
+        "reposo_empleador_60d", "reposo_empleador_40d", "reposo_empleador_20d",
+        "n_trabajadores_distintos_xempleador_60d", "n_medicos_distintos_xempleador_60d",
+        "frecuencia_j_30d_empleador", "frecuencia_f_30d_empleador", "frecuencia_m_30d_empleador",
+        "historial_trabajador_medico", "historial_empleador_medico", "ponderado_medico_trabajador",
+        "anomaly_score", "propensity_score_iforest"
+    ]
+    for col in expected_columns:
+        if col not in results.columns:
+            results[col] = None
+    upsert_query = f"""
+    INSERT INTO ml.anomalias (
+        {", ".join(expected_columns)}
+    ) VALUES (
+        {", ".join([f":{col}" for col in expected_columns])}
+    )
+    ON CONFLICT (id_lic) DO NOTHING
+    """
+    params_list = [
+        {col: row.get(col, None) for col in expected_columns}
+        for _, row in results.iterrows()
+    ]
+    session.execute(text(upsert_query), params_list)
+    logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.anomalias")
 
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
@@ -523,65 +479,47 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
 
 
 
-def guardar_semaforo(data: dict) -> dict:
+@db_session
+def guardar_semaforo(session, data: dict) -> dict:
     """
     Inserta o actualiza un resultado del semáforo en ml.semaforo_resultados.
     Si existe (rut_medico + rango), lo actualiza; de lo contrario, lo inserta.
     """
-    session = SessionLocal()
-    try:
-        query = read_sql_file("./sql/guardar_semaforo.sql")
-        params = {
-            "rut_medico": data.get("rut_medico"),
-            "n_lic": data.get("n_lic", 0),
-            "rn": data.get("rn", 0),
-            "rango": data.get("rango"),
-            "um": data.get("um", 0),
-            "an": data.get("an", 0),
-            "smf_rn": data.get("smf_rn", 0.0),
-            "smf_um": data.get("smf_um", 0.0),
-            "smf_an": data.get("smf_an", 0.0),
-            "created_at": datetime.now()
-        }
-        result = session.execute(text(query), params).fetchone()
-        session.commit()
-        if not result:
-            raise ValueError("No se pudo guardar el registro en ml.semaforo_resultados")
-        return dict(result._mapping)
-    except SQLAlchemyError as e:
-        session.rollback()
-        logger.error(f"Error al guardar semáforo: {str(e)}")
-        raise ValueError(f"Error al guardar semáforo: {str(e)}")
-    finally:
-        session.close()
+    query = read_sql_file("./sql/guardar_semaforo.sql")
+    params = {
+        "rut_medico": data.get("rut_medico"),
+        "n_lic": data.get("n_lic", 0),
+        "rn": data.get("rn", 0),
+        "rango": data.get("rango"),
+        "um": data.get("um", 0),
+        "an": data.get("an", 0),
+        "smf_rn": data.get("smf_rn", 0.0),
+        "smf_um": data.get("smf_um", 0.0),
+        "smf_an": data.get("smf_an", 0.0),
+        "created_at": datetime.now()
+    }
+    result = session.execute(text(query), params).fetchone()
+    if not result:
+        raise ValueError("No se pudo guardar el registro en ml.semaforo_resultados")
+    return dict(result._mapping)
 
 
-def consulta_semaforo(rango: str = None, rut_medico: str = None) -> list[dict]:
+@db_session
+def consulta_semaforo(session, rango: str = None, rut_medico: str = None) -> list[dict]:
     """
     Consulta resultados de semáforo filtrando opcionalmente por rango y/o rut_medico.
     """
-    session = SessionLocal()
-    try:
-        query = read_sql_file("./sql/consulta_semaforo.sql")
-        params = {"rango": rango, "rut_medico": rut_medico}
-        result = session.execute(text(query), params).fetchall()
-        return [dict(r._mapping) for r in result]
-    except SQLAlchemyError as e:
-        logger.error(f"Error al consultar semáforo: {str(e)}")
-        raise ValueError(f"Error al consultar semáforo: {str(e)}")
-    finally:
-        session.close()
+    query = read_sql_file("./sql/consulta_semaforo.sql")
+    params = {"rango": rango, "rut_medico": rut_medico}
+    result = session.execute(text(query), params).fetchall()
+    return [dict(r._mapping) for r in result]
 
-def consulta_licencias_periodo(anio: int, mes: int) -> list[dict]:
+@db_session
+def consulta_licencias_periodo(session, anio: int, mes: int) -> list[dict]:
     """
     Retorna un DataFrame con las licencias filtradas por año y mes.
     """
-    session = SessionLocal()
-    try:
-        query = read_sql_file("./sql/consulta_licencias_periodo.sql")
-        params = {"anio": str(anio), "mes": f"{mes:02d}"}
-        result = session.execute(text(query), params).fetchall()
-        return [dict(r._mapping) for r in result]
-    except SQLAlchemyError as e:
-        logger.error(f"Error al consultar licencias periodo: {str(e)}")
-        raise ValueError(f"Error al consultar licencias periodo: {str(e)}")
+    query = read_sql_file("./sql/consulta_licencias_periodo.sql")
+    params = {"anio": str(anio), "mes": f"{mes:02d}"}
+    result = session.execute(text(query), params).fetchall()
+    return [dict(r._mapping) for r in result]
