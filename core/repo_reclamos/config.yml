@@ -3,9 +3,9 @@ paths:
   # ARCHIVOS UCLM:
   denuncias_pae: "/YYYYMM/denuncias_pae.csv" #ex PRODUCCIÓN UCLM_072025_v2
   relatos: "/YYYYMM/relato.xlsx" # deberia ser .csv? 
-  detalle_uclm: "/YYYYMM/detalle_uclm.csv"
+
   # SABANA LME: select licencias
-  lme: '/YYYYMM/lme.csv'
+
 encoding:
   relatos: "latin-1"
   detalle_uclm: "latin-1"

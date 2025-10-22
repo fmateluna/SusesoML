@@ -28,6 +28,7 @@ def load_config(path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
+# fmateluna : Se agrega rut_medico como parametro opcional
 def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medico: Optional[str] = None) -> AdmisibilidadConfig:
 
     path_anio = str(anio)
@@ -44,15 +45,13 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medic
 
     path_denuncias_pae = f"{base_path}/{paths['denuncias_pae'].replace('YYYY', path_anio).replace('MM', path_mes)}"
     path_relatos = f"{base_path}/{paths['relatos'].replace('YYYY', path_anio).replace('MM', path_mes)}"
-    path_detalle_uclm = f"{base_path}/{paths['detalle_uclm'].replace('YYYY', path_anio).replace('MM', path_mes)}"
-    path_lme = f"{base_path}/{paths['lme'].replace('YYYY', path_anio).replace('MM', path_mes)}"
+
+
 
 
     return AdmisibilidadConfig(
         path_denuncias_pae,
         path_relatos,
-        path_detalle_uclm,       
-        path_lme,
         enc_relatos=encoding.get("relatos"),
         enc_detalle_uclm=encoding.get("detalle_uclm"),
         sep_denuncias_pae=csv_sep.get("denuncias_pae", "|"),
@@ -61,7 +60,7 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medic
         causal_homologada=filters.get("causal_homologada", "Denuncia a profesional emisor"),
         mes_a_revisar=mes,
         anio=anio,
-        # Se agrega el rut_medico a la configuracion
+        # fmateluna : Se agrega el rut_medico a la configuracion
         rut_medico=rut_medico,
         nlp=NLPConfig(
             enabled=bool(nlp_cfg.get("enabled", True)),
@@ -105,6 +104,7 @@ def lee_reclamos(request: ReclamosRequest) :
     
     cfg_dict = load_config(config_path)
     # Se pasa el rut_medico desde el request
+    # fmateluna : Se pasa el rut_medico desde el request
     adm_cfg = build_admisibilidad_cfg(cfg_dict,request.anio,request.mes, request.rut_medico)
     smf_cfg, prio_cfg = build_priorizacion_cfg(cfg_dict)
 

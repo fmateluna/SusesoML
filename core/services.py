@@ -10,7 +10,19 @@ from typing import List, Tuple, Optional
 import logging
 from models.consultas import ConsultaLicenciaRequest
 from datetime import datetime
-from core.utils.db_utils import db_session
+from core.utils.db_utils import db_session, pae_db_session # Import new decorator
+
+# fmateluna : Se crea esta nueva funcion para la consulta de detalle uclm
+@pae_db_session
+def consulta_detalle_uclm(session, anio: int, mes: int) -> list[dict]:
+    """
+    Consulta la tabla pae_sabana.uclmdetalle por mes y año.
+    """
+    query = read_sql_file("./sql/consulta_detalle_uclm.sql")
+    params = {"anio": anio, "mes": mes}
+    result = session.execute(text(query), params).fetchall()
+    return [dict(r._mapping) for r in result]
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -514,6 +526,7 @@ def consulta_semaforo(session, rango: str = None, rut_medico: str = None) -> lis
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
 
+# fmateluna : Se crea esta nueva funcion para la consulta de reclamos
 @db_session
 def consulta_semaforo_reclamos(session, anio: int, mes: int, rut_medico: Optional[str] = None) -> list[dict]:
     """
@@ -529,12 +542,13 @@ def consulta_semaforo_reclamos(session, anio: int, mes: int, rut_medico: Optiona
         logger.error(f"Error de base de datos en consulta_semaforo_reclamos: {e}")
         raise
 
+# fmateluna : Se agrega rut_medico como opcional
 @db_session
-def consulta_licencias_periodo(session, anio: int, mes: int) -> list[dict]:
+def consulta_licencias_periodo(session, anio: int, mes: int, rut_medico: Optional[str] = None) -> list[dict]:
     """
     Retorna un DataFrame con las licencias filtradas por año y mes.
     """
     query = read_sql_file("./sql/consulta_licencias_periodo.sql")
-    params = {"anio": str(anio), "mes": f"{mes:02d}"}
+    params = {"anio": str(anio), "mes": f"{mes:02d}", "rut_medico": rut_medico}
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]

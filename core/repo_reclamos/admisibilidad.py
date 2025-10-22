@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Dict, Any
 
 import pandas as pd
 
-from core.services import consulta_licencias_periodo, consulta_semaforo_reclamos
+from core.services import consulta_licencias_periodo, consulta_semaforo_reclamos, consulta_detalle_uclm
 
 try:
     import spacy
@@ -58,8 +58,8 @@ class AdmisibilidadConfig:
     
     path_denuncias_pae: str
     path_relatos: str
-    path_detalle_uclm: str
-    path_lme: str
+
+
 
     enc_relatos: Optional[str] = None
     enc_detalle_uclm: Optional[str] = None
@@ -72,7 +72,7 @@ class AdmisibilidadConfig:
     
     mes_a_revisar: int = 6
     anio: int = 2025
-    # Se agrega el rut_medico como parametro opcional
+    # fmateluna : Se agrega el rut_medico como parametro opcional
     rut_medico: Optional[str] = None
 
     # nlp: NLPConfig = NLPConfig()
@@ -103,6 +103,7 @@ class AdmisibilidadProcessor:
         """
         logger.info("Loading from DATABASE df_to_semaforo...")        
         # Se pasa el rut_medico a la consulta de semaforo
+        # fmateluna : Se pasa el rut_medico a la consulta de semaforo
         df = self.consulta_base_semaforo(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
         logger.info("Loading denuncias (PAE)...")
@@ -119,22 +120,27 @@ class AdmisibilidadProcessor:
         )
 
         logger.info("Loading detalle UCLM...")
-        detalle = _read_tabular(
-            self.cfg.path_detalle_uclm,
-            sep=self.cfg.sep_detalle_uclm,
-            encoding=self.cfg.enc_detalle_uclm,
-        )
+        # fmateluna : Se reemplaza la lectura del CSV por una consulta a la base de datos
+        detalle = self.consulta_base_detalle_uclm(self.cfg.mes_a_revisar, self.cfg.anio)
 
         logger.info("Loading From DataBase LME...")
-        #lme = self.consulta_base_lme(7,2025)
-        lme = _read_tabular(self.cfg.path_lme)
+        # fmateluna : Se reemplaza la lectura del CSV por una consulta a la base de datos
+        lme = self.consulta_base_lme(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
         return df, denuncias, relatos, detalle, lme
     
-    def consulta_base_lme(self, mes, anio : int) -> pd.DataFrame:    
-        data = consulta_licencias_periodo(mes,anio)
+    # fmateluna : Se crea esta funcion para consultar el detalle de uclm
+    def consulta_base_detalle_uclm(self, mes: int, anio: int) -> pd.DataFrame:
+        data = consulta_detalle_uclm(anio=anio, mes=mes)
+        df = pd.DataFrame(data)
+        return df
+
+    # fmateluna : Se agrega el rut_medico como opcional a la consulta
+    def consulta_base_lme(self, mes: int, anio: int, rut_medico: Optional[str] = None) -> pd.DataFrame:    
+        data = consulta_licencias_periodo(anio=anio, mes=mes, rut_medico=rut_medico)
         df = pd.DataFrame(data)
         return df        
+
 
     def consulta_base_semaforo(self, mes: int, anio: int, rut_medico: Optional[str] = None) -> pd.DataFrame:    
         # Se agrega el rut_medico a la consulta
@@ -199,7 +205,7 @@ class AdmisibilidadProcessor:
         d["sancionado"] = d["tipo_sancion"].notna().astype(int)
         if "causal_homologada" in d.columns:
             d = d[d["causal_homologada"] == self.cfg.causal_homologada]
-        # Si se especifica un rut_medico, se filtra por el
+        # fmateluna : Si se especifica un rut_medico, se filtra por el
         if self.cfg.rut_medico:
             d = d[d["rut_medico"] == self.cfg.rut_medico]
         d["fecha_ingreso"] = pd.to_datetime(d["fecha_ingreso"], errors="coerce")
@@ -275,7 +281,7 @@ class AdmisibilidadProcessor:
         detalleUCLM = detalleUCLM.copy()
 
         # Filters
-        # Si se especifica un rut_medico, se filtra por el
+        # fmateluna : Si se especifica un rut_medico, se filtra por el
         if self.cfg.rut_medico:
             lme = lme[lme["rut_medico"] == self.cfg.rut_medico]
         if "dias_reposo" in lme.columns:

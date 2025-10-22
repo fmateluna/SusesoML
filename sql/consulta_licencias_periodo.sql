@@ -7,4 +7,5 @@ SELECT
     id_lic
 FROM ml.licencias l
 WHERE l.fecha_emision >= (:anio || '-' || :mes || '-01')::date
-  AND l.fecha_emision < ((:anio || '-' || :mes || '-01')::date + INTERVAL '1 month');
+  AND l.fecha_emision < ((:anio || '-' || :mes || '-01')::date + INTERVAL '1 month')
+  AND (:rut_medico IS NULL OR l.rut_medico = :rut_medico);

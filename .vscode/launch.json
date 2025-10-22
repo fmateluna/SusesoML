@@ -63,6 +63,13 @@
                 "DB_NAME":"suseso_ml",
                 "DB_USER":"postgres",
                 "DB_PASS":"IDKFA2025",
+
+                "DB_SUSESO_HOST":"192.168.151.8",
+                "DB_SUSESO_PORT":"5432",
+                "DB_SUSESO_NAME":"suseso",
+                "DB_SUSESO_USER":"sus_c04",
+                "DB_SUSESO_PASS":"9wB97N2d",
+
             }
         }
     ]

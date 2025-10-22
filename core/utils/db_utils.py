@@ -3,6 +3,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from core.database import SessionLocal
 import logging
 
+from core.pae_database import PaeSessionLocal # Import new session
+
 logger = logging.getLogger(__name__)
 
 def db_session(func):
@@ -22,6 +24,30 @@ def db_session(func):
             session.rollback()
             logger.error(f"Error de base de datos en {func.__name__}: {str(e)}")
             raise ValueError(f"Error de base de datos: {str(e)}") from e
+        except Exception as e:
+            session.rollback()
+            logger.error(f"Error inesperado en {func.__name__}: {str(e)}")
+            raise ValueError(f"Error inesperado: {str(e)}") from e
+        finally:
+            session.close()
+    return wrapper
+
+# fmateluna : Se agrega un decorador para la nueva base de datos pae_sabana
+def pae_db_session(func):
+    """
+    Decorador para gestionar la sesión de SQLAlchemy para la base de datos PAE.
+    """
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        session = PaeSessionLocal()
+        try:
+            result = func(session, *args, **kwargs)
+            session.commit()
+            return result
+        except SQLAlchemyError as e:
+            session.rollback()
+            logger.error(f"Error de base de datos PAE en {func.__name__}: {str(e)}")
+            raise ValueError(f"Error de base de datos PAE: {str(e)}") from e
         except Exception as e:
             session.rollback()
             logger.error(f"Error inesperado en {func.__name__}: {str(e)}")
