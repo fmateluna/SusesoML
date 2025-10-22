@@ -49,6 +49,7 @@ class UmbralRequest(BaseModel):
 class ReclamosRequest(BaseModel):
     mes: int
     anio: int
+    rut_medico: Optional[str] = None
 
 class Consulta1Response(BaseModel):
     fecha_inicio: Optional[str]

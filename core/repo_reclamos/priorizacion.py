@@ -161,12 +161,14 @@ class PriorizacionProcessor:
         cat_cols = []
         for col in smf_cols:
             cat_col = f"{col}_cat"
-            df[cat_col] = pd.cut(
+            # Aveces los valores de pd.cut vienen con valores NaN por eso agregue esto
+            cut_series = pd.cut(
                 df[col],
                 bins=[-0.01, 0.5, 0.8, 1.01],
                 labels=[1, 2, 4],
                 include_lowest=True
-            ).astype(int)
+            )
+            df[cat_col] = cut_series.cat.add_categories([0]).fillna(0).astype(int)
             cat_cols.append(cat_col)
 
         df["ptje_prio"] = 0.0

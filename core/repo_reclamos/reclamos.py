@@ -28,7 +28,7 @@ def load_config(path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int) -> AdmisibilidadConfig:
+def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medico: Optional[str] = None) -> AdmisibilidadConfig:
 
     path_anio = str(anio)
     path_mes = f"{mes:02d}" 
@@ -42,7 +42,6 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int) -> Admisi
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
 
 
-    path_df_to_semaforo = f"{base_path}/{paths['df_to_semaforo'].replace('YYYY', path_anio).replace('MM', path_mes)}"
     path_denuncias_pae = f"{base_path}/{paths['denuncias_pae'].replace('YYYY', path_anio).replace('MM', path_mes)}"
     path_relatos = f"{base_path}/{paths['relatos'].replace('YYYY', path_anio).replace('MM', path_mes)}"
     path_detalle_uclm = f"{base_path}/{paths['detalle_uclm'].replace('YYYY', path_anio).replace('MM', path_mes)}"
@@ -50,7 +49,6 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int) -> Admisi
 
 
     return AdmisibilidadConfig(
-        path_df_to_semaforo,
         path_denuncias_pae,
         path_relatos,
         path_detalle_uclm,       
@@ -63,6 +61,8 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int) -> Admisi
         causal_homologada=filters.get("causal_homologada", "Denuncia a profesional emisor"),
         mes_a_revisar=mes,
         anio=anio,
+        # Se agrega el rut_medico a la configuracion
+        rut_medico=rut_medico,
         nlp=NLPConfig(
             enabled=bool(nlp_cfg.get("enabled", True)),
             model=nlp_cfg.get("model", "es_core_news_sm"),
@@ -104,7 +104,8 @@ def lee_reclamos(request: ReclamosRequest) :
     config_path = f"{base_path}/config.yml"
     
     cfg_dict = load_config(config_path)
-    adm_cfg = build_admisibilidad_cfg(cfg_dict,request.anio,request.mes)
+    # Se pasa el rut_medico desde el request
+    adm_cfg = build_admisibilidad_cfg(cfg_dict,request.anio,request.mes, request.rut_medico)
     smf_cfg, prio_cfg = build_priorizacion_cfg(cfg_dict)
 
     # ---------- Load ----------
@@ -157,4 +158,4 @@ def lee_reclamos(request: ReclamosRequest) :
     df_prepared.to_csv(out_path, index=False, sep=";", encoding="latin-1")
     
     logger.info("Pipeline completed. Output prepared for JSON")
-    return df_prepared.to_dict(orient='records')  # Retorna diccionario, no JSON strin
+    return denuncias_semaforo.to_dict(orient='records')  # Retorna diccionario, no JSON strin

@@ -1,6 +1,5 @@
 paths:
-  # OUTPUT C1 select SEMAFORO 
-  df_to_semaforo: '/YYYYMM/semaforo.csv'
+
   # ARCHIVOS UCLM:
   denuncias_pae: "/YYYYMM/denuncias_pae.csv" #ex PRODUCCIÓN UCLM_072025_v2
   relatos: "/YYYYMM/relato.xlsx" # deberia ser .csv? 

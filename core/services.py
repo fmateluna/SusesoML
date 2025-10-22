@@ -6,7 +6,7 @@ from core.database import SessionLocal
 import pandas as pd
 from collections import defaultdict
 from datetime import datetime, timedelta
-from typing import List, Tuple
+from typing import List, Tuple, Optional
 import logging
 from models.consultas import ConsultaLicenciaRequest
 from datetime import datetime
@@ -513,6 +513,21 @@ def consulta_semaforo(session, rango: str = None, rut_medico: str = None) -> lis
     params = {"rango": rango, "rut_medico": rut_medico}
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
+
+@db_session
+def consulta_semaforo_reclamos(session, anio: int, mes: int, rut_medico: Optional[str] = None) -> list[dict]:
+    """
+    Consulta licencias y scores para el proceso de reclamos.
+    """
+    query = read_sql_file("./sql/consulta_semaforo_reclamos.sql")
+    # Se agrega el parámetro opcional rut_medico a la consulta
+    params = {"anio": anio, "mes": mes, "rut_medico": rut_medico}
+    try:
+        result = session.execute(text(query), params).fetchall()
+        return [dict(r._mapping) for r in result]
+    except Exception as e:
+        logger.error(f"Error de base de datos en consulta_semaforo_reclamos: {e}")
+        raise
 
 @db_session
 def consulta_licencias_periodo(session, anio: int, mes: int) -> list[dict]:

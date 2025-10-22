@@ -6,5 +6,5 @@ SELECT
     rut_medico,
     id_lic
 FROM ml.licencias l
-WHERE TO_CHAR(l.fecha_emision, 'YYYY') = :anio
-  AND TO_CHAR(l.fecha_emision, 'MM') = :mes;
+WHERE l.fecha_emision >= (:anio || '-' || :mes || '-01')::date
+  AND l.fecha_emision < ((:anio || '-' || :mes || '-01')::date + INTERVAL '1 month');

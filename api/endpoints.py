@@ -10,13 +10,12 @@ from typing import Optional
 import hashlib
 import logging
 from fastapi import APIRouter
-from threading import Thread, Lock
-from datetime import datetime
-import hashlib
+from threading import Thread
 from core.repo_reclamos.reclamos import lee_reclamos
 from core.semaforo import procesar_semaforo
 from core.services import  consulta_semaforo, get_umbral_status, manage_umbral_status
 from models.consultas import ConsultaLicenciaRequest, MasivoRequest, ReclamosRequest, SemaforoRequest, UmbralRequest
+from core.utils.task_manager import task_manager
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -25,35 +24,6 @@ router = APIRouter()
 status_store = {}
 
 router = APIRouter()
-cache_lock = Lock()
-long_query_cache = {}
-
-def generate_request_hash(request_model) -> str:
-    # Convierte el Pydantic model a dict y luego genera hash
-    return hashlib.md5(str(request_model.dict()).encode()).hexdigest()
-
-
-def async_query_task(request_hash: str, request_model, func):
-    try:
-        with cache_lock:
-            long_query_cache[request_hash] = {"status": "processing", "updated_at": datetime.now()}
-        result = func(request_model)
-        with cache_lock:
-            result_json = result.to_dict(orient="records")
-            long_query_cache[request_hash] = {"status": "finishi", "updated_at": datetime.now(), "data":result_json}
-
-    except Exception as e:
-        with cache_lock:
-            long_query_cache[request_hash] = {"status": "error", "message": str(e), "updated_at": datetime.now()}
-
-
-def check_or_start_task(request_model, func):
-    request_hash = generate_request_hash(request_model)
-    with cache_lock:
-        if request_hash in long_query_cache:
-            return long_query_cache[request_hash]
-    Thread(target=async_query_task, args=(request_hash, request_model, func)).start()
-    return {"status": "processing", "message": "working."}
 
      
 @router.post("/score")
@@ -82,7 +52,7 @@ def query_score(request: MasivoRequest):
 async def create_umbral(request: UmbralRequest):
     """Inicia una consulta de umbral y registra su estado en ml.umbral_data."""
     try:
-        request_hash = generate_request_hash(request)
+        request_hash = task_manager.generate_request_hash(request)
 
         # Consultar si el estado ya existe
         status = get_umbral_status(request_hash)
@@ -121,7 +91,7 @@ async def get_umbral_status_endpoint(request_hash: str):
 
 @router.post("/licencias/query")
 def query_score(request: ConsultaLicenciaRequest):
-    return check_or_start_task(request, consulta_licencia_from_rest)
+    return task_manager.check_or_start_task(request, consulta_licencia_from_rest)
 
 
 @router.post("/semaforo")
@@ -144,7 +114,7 @@ def procesar_semaforo_endpoint(request: SemaforoRequest):
         )
         return resultado
     
-    resultado = check_or_start_task(request, semaforo_func)
+    resultado = task_manager.check_or_start_task(request, semaforo_func)
     return resultado
      
 @router.post("/licencias/reclamos")

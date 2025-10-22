@@ -23,10 +23,7 @@ WHERE
     )
     AND (
         :especialidad_profesional IS NULL
-        OR similarity(
-            unaccent(lower(ep.descripcion_especialidad_profesional)),
-            unaccent(lower(:especialidad_profesional))
-        ) > 0.8
+        OR ep.descripcion_especialidad_profesional ILIKE '%' || :especialidad_profesional || '%'
     )
     AND NOT EXISTS (
         SELECT 1

@@ -27,44 +27,6 @@ logger = logging.getLogger(__name__)
 from fastapi.responses import StreamingResponse
 import io
 
-umbral_cache = {}
-cache_lock = Lock()
-
-
-
-def manage_umbral_status_cache(
-    request_hash: str,
-    fecha: str,
-    dias: int,
-    entidad: str,
-    status: str
-) -> dict:
-    """
-    Inserta o actualiza el estado en el cache global y devuelve el registro.
-    """
-    record = {
-        "status": status,
-        "request_hash": request_hash,
-        "fecha": fecha,
-        "dias": dias,
-        "entidad": entidad,
-        "created_at": datetime.now().isoformat()
-    }
-
-    # Actualiza cache de manera segura
-    with cache_lock:
-        umbral_cache[request_hash] = record
-
-    return record
-
-
-def get_umbral_status_cache(request_hash: str) -> dict | None:
-    """
-    Recupera un registro desde el cache global.
-    """
-    with cache_lock:
-        return umbral_cache.get(request_hash)
-
 def to_csv_str(df):
     buffer = io.StringIO()
     df.to_csv(buffer, index=False)
