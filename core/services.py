@@ -23,6 +23,28 @@ def consulta_detalle_uclm(session, anio: int, mes: int) -> list[dict]:
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
 
+# fmateluna : Se crea esta nueva funcion para la consulta de relatos
+@pae_db_session
+def consulta_relatos(session, anio: int, mes: int) -> list[dict]:
+    """
+    Consulta la tabla pae_sabana.relato por mes y año.
+    """
+    query = read_sql_file("./sql/consulta_relato.sql")
+    params = {"anio": anio, "mes": mes}
+    result = session.execute(text(query), params).fetchall()
+    return [dict(r._mapping) for r in result]
+
+# fmateluna : Se crea esta nueva funcion para la consulta de denuncias PAE
+@pae_db_session
+def consulta_denuncias_pae(session, anio: int, mes: int) -> list[dict]:
+    """
+    Consulta la tabla pae_sabana.uclmbase por mes y año.
+    """
+    query = read_sql_file("./sql/consulta_denuncias_pae.sql")
+    params = {"anio": anio, "mes": mes}
+    result = session.execute(text(query), params).fetchall()
+    return [dict(r._mapping) for r in result]
+
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)

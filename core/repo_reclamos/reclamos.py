@@ -43,20 +43,21 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medic
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
 
 
-    path_denuncias_pae = f"{base_path}/{paths['denuncias_pae'].replace('YYYY', path_anio).replace('MM', path_mes)}"
-    path_relatos = f"{base_path}/{paths['relatos'].replace('YYYY', path_anio).replace('MM', path_mes)}"
+    # Migracion de csv/xlsx a Base de datos : Se comenta la construccion de path_denuncias_pae ya que ahora se carga desde la base de datos
+    # path_denuncias_pae = f"{base_path}/{paths['denuncias_pae'].replace('YYYY', path_anio).replace('MM', path_mes)}"
 
 
 
 
     return AdmisibilidadConfig(
-        path_denuncias_pae,
-        path_relatos,
-        enc_relatos=encoding.get("relatos"),
-        enc_detalle_uclm=encoding.get("detalle_uclm"),
-        sep_denuncias_pae=csv_sep.get("denuncias_pae", "|"),
-        sep_detalle_uclm=csv_sep.get("detalle_uclm", "|"),
-        sep_relatos=csv_sep.get("relatos", ","),
+        # Migracion de csv/xlsx a Base de datos : Se elimina path_denuncias_pae del constructor
+        # path_denuncias_pae,
+        # Migracion de csv/xlsx a Base de datos : enc_detalle_uclm ya no es necesario
+        # enc_detalle_uclm=encoding.get("detalle_uclm"),
+        # Migracion de csv/xlsx a Base de datos : Se elimina sep_denuncias_pae del constructor
+        # sep_denuncias_pae=csv_sep.get("denuncias_pae", "|"),
+        # Migracion de csv/xlsx a Base de datos : sep_detalle_uclm ya no es necesario
+        # sep_detalle_uclm=csv_sep.get("detalle_uclm", "|"),
         causal_homologada=filters.get("causal_homologada", "Denuncia a profesional emisor"),
         mes_a_revisar=mes,
         anio=anio,

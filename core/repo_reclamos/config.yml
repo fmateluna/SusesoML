@@ -1,19 +1,16 @@
 paths:
 
   # ARCHIVOS UCLM:
-  denuncias_pae: "/YYYYMM/denuncias_pae.csv" #ex PRODUCCIÓN UCLM_072025_v2
-  relatos: "/YYYYMM/relato.xlsx" # deberia ser .csv? 
 
   # SABANA LME: select licencias
 
-encoding:
-  relatos: "latin-1"
-  detalle_uclm: "latin-1"
-
-csv_sep:
-  denuncias_pae: ","
-  detalle_uclm: "|"
-  relatos: ","
+#Migracion de CSV/XLS hacia base de datos : Las siguientes configuraciones de encoding y csv_sep ya no son necesarias ya que los datos se cargan desde la base de datos.
+#encoding:
+#  detalle_uclm: "latin-1"
+#  relatos: # Migracion de csv/xlsx a Base de datos : Ya no se utiliza
+#csv_sep:
+#  detalle_uclm: "|"
+#  relatos: ","
 
 filters:
   causal_homologada: "Denuncia a profesional emisor"

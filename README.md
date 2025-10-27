@@ -246,3 +246,26 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 La API estará disponible en `http://0.0.0.0:8000/lm/ml`. Puedes acceder a la documentación interactiva en `http://0.0.0.0:8000/lm/ml/docs`.
+
+RECLAMOS :
+
+1. `semaforo.csv`:
+* Tablas involucradas: ml.licencias, ml.propensity_score, ml.umbrales y ml.anomalias.
+* Archivos creados: Se creó la consulta sql/consulta_semaforo_reclamos.sql y la función consulta_semaforo_reclamos en core/services.py.
+
+2. `detalle_uclm.csv`:
+* Tabla involucrada: pae_sabana.uclmdetalle.
+* Archivos creados/modificados: Se creó la consulta sql/consulta_detalle_uclm.sql, la función consulta_detalle_uclm en core/services.py, y se configuró la nueva conexión a la base de datos en
+core/pae_database.py y core/utils/db_utils.py.
+
+3. `relato.xlsx`:
+* Tabla involucrada: pae_sabana.relato.
+* Archivos creados: Se creó la consulta sql/consulta_relato.sql y la función consulta_relato en core/services.py.
+
+4. `denuncias_pae.csv`:
+* Tabla involucrada: pae_sabana.uclmbase.
+* Archivos creados: Se creó la consulta sql/consulta_denuncias_pae.sql y la función consulta_denuncias_pae en core/services.py.
+
+5. `lme.csv`:
+* Tabla involucrada: ml.licencias.
+* Archivos creados: Se creó la consulta sql/consulta_licencias_periodo.sql y la función consulta_licencias_periodo en core/services.py.

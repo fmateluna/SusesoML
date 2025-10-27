@@ -9,7 +9,7 @@ from typing import Optional, Tuple, Dict, Any
 
 import pandas as pd
 
-from core.services import consulta_licencias_periodo, consulta_semaforo_reclamos, consulta_detalle_uclm
+from core.services import consulta_licencias_periodo, consulta_semaforo_reclamos, consulta_detalle_uclm, consulta_relatos, consulta_denuncias_pae
 
 try:
     import spacy
@@ -21,22 +21,23 @@ logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
 
 
-def _read_tabular(path: str, sep: Optional[str] = None, encoding: Optional[str] = None) -> pd.DataFrame:
-    """
-    Read CSV or Excel depending on file extension. For CSV, pass sep/encoding.
-    """
-    lower = path.lower()
-    if lower.endswith(".xlsx") or lower.endswith(".xls"):
-        return pd.read_excel(path)
-    # default to CSV
-    kwargs: Dict[str, Any] = {}
-    if sep is not None:
-        kwargs["sep"] = sep
-    if encoding is not None:
-        kwargs["encoding"] = encoding
-    # safer for malformed lines
-    kwargs["on_bad_lines"] = "skip"
-    return pd.read_csv(path, **kwargs)
+# Migracion de csv/xlsx a Base de datos : Se comenta la funcion _read_tabular ya que ya no se utiliza
+# def _read_tabular(path: str, sep: Optional[str] = None, encoding: Optional[str] = None) -> pd.DataFrame:
+#     """
+#     Read CSV or Excel depending on file extension. For CSV, pass sep/encoding.
+#     """
+#     lower = path.lower()
+#     if lower.endswith(".xlsx") or lower.endswith(".xls"):
+#         return pd.read_excel(path)
+#     # default to CSV
+#     kwargs: Dict[str, Any] = {}
+#     if sep is not None:
+#         kwargs["sep"] = sep
+#     if encoding is not None:
+#         kwargs["encoding"] = encoding
+#     # safer for malformed lines
+#     kwargs["on_bad_lines"] = "skip"
+#     return pd.read_csv(path, **kwargs)
 
 
 def clean_id_lic(id_lic) -> str:
@@ -56,17 +57,11 @@ class NLPConfig:
 @dataclass
 class AdmisibilidadConfig:
     
-    path_denuncias_pae: str
-    path_relatos: str
+    # Migracion de csv/xlsx a Base de datos : enc_detalle_uclm ya no es necesario
+    # enc_detalle_uclm: Optional[str] = None
 
-
-
-    enc_relatos: Optional[str] = None
-    enc_detalle_uclm: Optional[str] = None
-
-    sep_denuncias_pae: Optional[str] = "|"
-    sep_detalle_uclm: Optional[str] = "|"
-    sep_relatos: Optional[str] = ","
+    # Migracion de csv/xlsx a Base de datos : sep_detalle_uclm ya no es necesario
+    # sep_detalle_uclm: Optional[str] = "|"
 
     causal_homologada: str = "Denuncia a profesional emisor"
     
@@ -106,18 +101,11 @@ class AdmisibilidadProcessor:
         # fmateluna : Se pasa el rut_medico a la consulta de semaforo
         df = self.consulta_base_semaforo(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
-        logger.info("Loading denuncias (PAE)...")
-        denuncias = _read_tabular(
-            self.cfg.path_denuncias_pae,
-            sep=self.cfg.sep_denuncias_pae,
-        )
+        logger.info("Loading denuncias (PAE) from DATABASE...")
+        denuncias = self.consulta_base_denuncias_pae(self.cfg.mes_a_revisar, self.cfg.anio)
 
-        logger.info("Loading relatos...")
-        relatos = _read_tabular(
-            self.cfg.path_relatos,
-            sep=self.cfg.sep_relatos,
-            encoding=self.cfg.enc_relatos,
-        )
+        logger.info("Loading relatos from DATABASE...")
+        relatos = self.consulta_base_relatos(self.cfg.mes_a_revisar, self.cfg.anio)
 
         logger.info("Loading detalle UCLM...")
         # fmateluna : Se reemplaza la lectura del CSV por una consulta a la base de datos
@@ -133,6 +121,22 @@ class AdmisibilidadProcessor:
     def consulta_base_detalle_uclm(self, mes: int, anio: int) -> pd.DataFrame:
         data = consulta_detalle_uclm(anio=anio, mes=mes)
         df = pd.DataFrame(data)
+        return df
+
+    # fmateluna : Se crea esta funcion para consultar los relatos
+    def consulta_base_relatos(self, mes: int, anio: int) -> pd.DataFrame:
+        data = consulta_relatos(anio=anio, mes=mes)
+        df = pd.DataFrame(data)
+        # Migracion archivos a base de datos : Se renombra la columna 'folio_fui' a 'FUN_FOLIO' y 'relato' a 'FUN_RELATO' para compatibilidad.
+        df = df.rename(columns={"folio_fui": "FUN_FOLIO", "relato": "FUN_RELATO"})
+        return df
+
+    # fmateluna : Se crea esta funcion para consultar las denuncias PAE
+    def consulta_base_denuncias_pae(self, mes: int, anio: int) -> pd.DataFrame:
+        data = consulta_denuncias_pae(anio=anio, mes=mes)
+        df = pd.DataFrame(data)
+        # Migracion archivos a base de datos : Se agrega la columna 'origen' con valor 'PAE' para mantener compatibilidad con la logica original del CSV.
+        df["origen"] = "PAE"
         return df
 
     # fmateluna : Se agrega el rut_medico como opcional a la consulta
@@ -228,6 +232,8 @@ class AdmisibilidadProcessor:
         relatos: pd.DataFrame,
     ) -> pd.DataFrame:
         # Assumes relatos has 'FUN_FOLIO' (ID) & 'FUN_RELATO'
+        print("DEBUG: Columnas de 'relatos' antes del merge:", relatos.columns)
+        print("DEBUG: Columnas de 'denuncias_filtradas' antes del merge:", denuncias_filtradas.columns)
         merged = pd.merge(
             relatos, denuncias_filtradas,
             how="inner", left_on="FUN_FOLIO", right_on="folio_fui"
