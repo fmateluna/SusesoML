@@ -69,12 +69,50 @@ def masivo(fecha_inicio: str, fecha_fin: str):
 
 def propensy_score(fecha_inicio: str, fecha_fin: str):
     key = makeKeyFromFechas(fecha_inicio, fecha_fin)
+    resultado_score = None
 
-    # Consulta si l ejecucion masiva ya se realizo por los parametros de fechas del request
+    # Consulta si la ejecución masiva ya se realizó por los parámetros de fechas del request
     if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:        
         execute_scores_map[key] = "run"
-        return managerPickle.ejecuta_masivo( fecha_inicio, fecha_fin)
-    return managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
+        resultado_score = managerPickle.ejecuta_masivo(fecha_inicio, fecha_fin)
+    else:
+        resultado_score = managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
+
+    # --- INICIO Actualizacion de ejeucion noviembre ---
+    try:
+        logger.info("Iniciando procesos adicionales de Umbrales, Anomalías y Semáforo...")
+        
+        # 1. y 2. Generar y guardar datos de Umbrales
+        logger.info("Paso 1: Generando datos de umbrales...")
+        # Usamos fecha_fin como la fecha base para el cálculo de umbrales
+        dias_umbral = 60
+        entidad_umbral = "rut_medico"
+        df_umbrales = generate_data_umbral(fecha_fin, dias_umbral, entidad_umbral)
+        
+        if not df_umbrales.empty:
+            logger.info("Paso 2: Guardando resultados de umbrales en la base de datos...")
+            process_umbral_and_save_db(df_umbrales, dias_umbral, entidad_umbral)
+
+            # 3. Calcular Anomalías (usa los mismos datos que umbrales)
+            logger.info("Paso 3: Calculando anomalías...")
+            calcular_anomalias(df_umbrales)
+        else:
+            logger.warning("No se generaron datos de umbrales, se omiten los pasos de guardar umbrales y calcular anomalías.")
+
+        # 4. Ejecutar Semáforo
+        logger.info("Paso 4: Procesando el semáforo...")
+        fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
+        procesar_semaforo(año=fecha_dt.year, mes=fecha_dt.month)
+        
+        logger.info("Procesos adicionales finalizados correctamente.")
+
+    except Exception as e:
+        logger.error(f"Error durante la ejecución de procesos adicionales (Umbrales, Anomalías, Semáforo): {e}", exc_info=True)
+        # dejo el try catch encapsulado en el caso de que afete a la rutina estable
+
+    # --- FIN Actualizacion de ejeucion noviembre ---
+
+    return resultado_score
 
 def propensy_score_licencia(fecha_inicio: str, fecha_fin: str):
     from_db = query_score_licencia(fecha_inicio, fecha_fin)
