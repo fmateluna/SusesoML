@@ -1,5 +1,7 @@
 import logging
+import os
 
+import pandas as pd
 from core.utils.license_processing import count_licenses_by_entity, count_licenses_by_otorgamiento, count_licenses_by_diagnosis
 
 # Configure logging
@@ -38,7 +40,7 @@ def process_umbral_data(df, entity_col='rut_medico',dias=60):
         return df
 
     except Exception as e:
-        logger.error(f"Error procesando datos de umbral: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error procesando datos de umbral: {str(e)}")
         raise
 
 

@@ -11,6 +11,7 @@ import logging
 from models.consultas import ConsultaLicenciaRequest
 from datetime import datetime
 from core.utils.db_utils import db_session, pae_db_session # Import new decorator
+import os
 
 # fmateluna : Se crea esta nueva funcion para la consulta de detalle uclm
 @pae_db_session
@@ -108,7 +109,7 @@ def query_regla_negocio(
         ])
         return df
     except Exception as e:
-        logger.error(f"Error ejecutando query_regla_negocio: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error ejecutando query_regla_negocio: {str(e)}")
         raise
 
 @db_session
@@ -117,7 +118,7 @@ def update_propensity_score_licencias(session, results: pd.DataFrame, score_colu
     Actualiza la tabla ml.propensity_score con un lote de resultados.
     """
     if results.empty or score_column not in results.columns:
-        logger.error(f"Datos vacíos o columna {score_column} no encontrada")
+        logger.error(f"[PID: {os.getpid()}] >Datos vacíos o columna {score_column} no encontrada")
         return
     upsert_query = """
     INSERT INTO ml.propensity_score (id_lic, folio, rn, score)
@@ -136,7 +137,7 @@ def update_propensity_score_licencias(session, results: pd.DataFrame, score_colu
     ]
     session.execute(text(upsert_query), params_list)
     successful_ids = [row['id_licencia'] for _, row in results.iterrows()]
-    logger.info(f"Registros insertados exitosamente: {len(successful_ids)} IDs")
+    logger.info(f"[PID: {os.getpid()}] >Registros insertados exitosamente: {len(successful_ids)} IDs")
 
 def query_masivo(fecha_inicio: str, fecha_fin: str) -> pd.DataFrame:
     """Ejecuta consulta masiva de licencias en un rango de fechas."""
@@ -155,7 +156,7 @@ def query_masivo(fecha_inicio: str, fecha_fin: str) -> pd.DataFrame:
         ])
         return df
     except Exception as e:
-        logger.error(f"Error ejecutando query_masivo: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error ejecutando query_masivo: {str(e)}")
         raise
 
 def query_score(fecha_inicio: str, fecha_fin: str) -> List[dict]:
@@ -178,7 +179,7 @@ def query_score(fecha_inicio: str, fecha_fin: str) -> List[dict]:
             for row in result
         ]
     except Exception as e:
-        logger.error(f"Error ejecutando query_score: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error ejecutando query_score: {str(e)}")
         raise
 
 def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> List[dict]:
@@ -215,7 +216,7 @@ def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> List[dict]:
                 })
         return list(agrupados.values())
     except Exception as e:
-        logger.error(f"Error ejecutando query_score_licencia: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error ejecutando query_score_licencia: {str(e)}")
         raise
 
 def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> List[List]:
@@ -242,7 +243,7 @@ def clear_umbral_data_table(session) -> None:
         logger.info("Tabla ml.umbral_data vaciada exitosamente.")
     except SQLAlchemyError as e:
         session.rollback()
-        logger.error(f"Error al vaciar la tabla ml.umbral_data: {e}")
+        logger.error(f"[PID: {os.getpid()}] >Error al vaciar la tabla ml.umbral_data: {e}")
         raise
 
 @db_session
@@ -337,7 +338,7 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
             if 'score_' in col:
                 results[col] = 0.0
             else:
-                logger.warning(f"Columna {col} no encontrada en DataFrame, se seteará a NULL")
+                logger.warning(f"[PID: {os.getpid()}] >Columna {col} no encontrada en DataFrame, se seteará a NULL")
                 results[col] = None
     upsert_query = """
     INSERT INTO ml.umbrales (
@@ -372,7 +373,7 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
         for _, row in results.iterrows()
     ]
     session.execute(text(upsert_query), params_list)
-    logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.umbrales")
+    logger.info(f"[PID: {os.getpid()}] >Insertados/actualizados {len(params_list)} registros en ml.umbrales")
 
 @db_session
 def insert_anomalias(session, results: pd.DataFrame) -> None:
@@ -425,7 +426,7 @@ def insert_anomalias(session, results: pd.DataFrame) -> None:
         for _, row in results.iterrows()
     ]
     session.execute(text(upsert_query), params_list)
-    logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.anomalias")
+    logger.info(f"[PID: {os.getpid()}] >Insertados/actualizados {len(params_list)} registros en ml.anomalias")
 
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
@@ -504,10 +505,10 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
         ])
         return df
     except pd.errors.ParserError as e:
-        logger.error(f"Error en el parseo del DataFrame: columnas no coinciden: {str(e)}")
-        raise ValueError(f"Error en el parseo del DataFrame: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error en el parseo del DataFrame: columnas no coinciden: {str(e)}")
+        raise ValueError(f"[PID: {os.getpid()}] >Error en el parseo del DataFrame: {str(e)}")
     except Exception as e:
-        logger.error(f"Error ejecutando consulta_licencia: {str(e)}")
+        logger.error(f"[PID: {os.getpid()}] >Error ejecutando consulta_licencia: {str(e)}")
         raise
 
 
@@ -560,7 +561,7 @@ def consulta_semaforo_reclamos(session, anio: int, mes: int, rut_medico: Optiona
         result = session.execute(text(query), params).fetchall()
         return [dict(r._mapping) for r in result]
     except Exception as e:
-        logger.error(f"Error de base de datos en consulta_semaforo_reclamos: {e}")
+        logger.error(f"[PID: {os.getpid()}] >Error de base de datos en consulta_semaforo_reclamos: {e}")
         raise
 
 # fmateluna : Se agrega rut_medico como opcional

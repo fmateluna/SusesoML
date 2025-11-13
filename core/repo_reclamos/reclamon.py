@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 import re
 import logging
 reclamos_logger = logging.getLogger('reclamos_logger')
+import os
 
 class ProcesadorReclamos:
     def __init__(self):
@@ -210,7 +211,7 @@ class ProcesadorReclamos:
         filter_year (int): Año a revisar
         config (dict): Diccionario con rutas y configuraciones
         """
-        reclamos_logger.info(f"Iniciando procesamiento para {mes_a_revisar_no}/{filter_year}")
+        reclamos_logger.info(f"[PID: {os.getpid()}] >Iniciando procesamiento para {mes_a_revisar_no}/{filter_year}")
         
         # 1. Obtener datos
         denuncias = self.obtenerDenuncias(config['ruta_denuncias'])
@@ -226,7 +227,7 @@ class ProcesadorReclamos:
         denuncias_filtradas = denuncias[(denuncias['fecha_ingreso'] >= start_date) & 
                                       (denuncias['fecha_ingreso'] < end_date)]
         
-        reclamos_logger.info(f"Denuncias filtradas para {start_date.strftime('%B %Y')}: {len(denuncias_filtradas)}")
+        reclamos_logger.info(f"[PID: {os.getpid()}] >Denuncias filtradas para {start_date.strftime('%B %Y')}: {len(denuncias_filtradas)}")
         
         # 3. Procesar relatos
         denuncias_previas_relato = self.procesarRelatos(relatos, denuncias_filtradas)

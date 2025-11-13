@@ -19,5 +19,5 @@ DB_SUSESO_USER = os.getenv("DB_SUSESO_USER")
 DB_SUSESO_PASS = os.getenv("DB_SUSESO_PASS")
 
 SQLALCHEMY_PAE_DATABASE_URL = f"postgresql://{DB_SUSESO_USER}:{DB_SUSESO_PASS}@{DB_SUSESO_HOST}:{DB_SUSESO_PORT}/{DB_SUSESO_NAME}"
-pae_engine = create_engine(SQLALCHEMY_PAE_DATABASE_URL, pool_size=10, max_overflow=20, pool_timeout=30)
+pae_engine = create_engine(SQLALCHEMY_PAE_DATABASE_URL, pool_size=10, max_overflow=20, pool_timeout=30, client_encoding='UTF-8')
 PaeSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=pae_engine)

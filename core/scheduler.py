@@ -4,7 +4,7 @@ import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from cron_priorizacion import run_cron_priorizacion
-
+import os
 # Usamos el logger estándar aquí, ya que este módulo es de configuración
 logger = logging.getLogger(__name__)
 
@@ -33,9 +33,9 @@ def start_scheduler():
         
         scheduler.start()
         logger.info("Planificador de tareas iniciado correctamente.")
-        logger.info(f"Trabajo 'cron_priorizacion_job' programado con la expresión: '{cron_expression}'")
+        logger.info(f"[PID: {os.getpid()}] >Trabajo 'cron_priorizacion_job' programado con la expresión: '{cron_expression}'")
 
     except FileNotFoundError:
-        logger.error(f"No se encuentra el archivo de configuración del cron en: {cron_config_path}")
+        logger.error(f"[PID: {os.getpid()}] >No se encuentra el archivo de configuración del cron en: {cron_config_path}")
     except Exception as e:
-        logger.error(f"Error al iniciar el planificador de tareas: {e}", exc_info=True)
+        logger.error(f"[PID: {os.getpid()}] >Error al iniciar el planificador de tareas: {e}", exc_info=True)

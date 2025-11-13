@@ -4,7 +4,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from typing import List, Optional
-
+import os
 import numpy as np
 import pandas as pd
 
@@ -47,6 +47,12 @@ class PriorizacionProcessor:
         sort_values_by: Optional[str] = None,
     ) -> pd.DataFrame:
         sort_values_by = sort_values_by or self.smf_cfg.sort_values_by
+
+        # Si el DataFrame de entrada está vacío, retornar un DataFrame vacío con las columnas esperadas
+        if df.empty:
+            return pd.DataFrame(columns=[
+                "rut_medico", "n_lic", "rn", "um", "an", "smf_rn", "smf_um", "smf_an"
+            ])
 
         # Ensure datetime
         df = df.copy()
@@ -125,7 +131,7 @@ class PriorizacionProcessor:
         pieces = []
         for m in meses:
             mdf = self.semaforoWatson(df, mes=m, anio=anio, show_results=None)
-            mdf = mdf.add_prefix(f"m{m}_")
+            mdf = mdf.add_prefix(f"[PID: {os.getpid()}] >m{m}_")
             mdf = mdf.rename(columns={f"m{m}_rut_medico": "rut_medico"})
             pieces.append(mdf)
 

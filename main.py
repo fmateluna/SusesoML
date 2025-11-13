@@ -5,6 +5,7 @@ import threading
 from cron_priorizacion import run_cron_priorizacion
 import logging
 from core.utils.logging_config import setup_loggers
+import multiprocessing # Importar multiprocessing
 
 app = FastAPI(title="Manager Pickle Server")
 
@@ -24,13 +25,16 @@ def startup_event():
     start_scheduler()
 
     # 3. Ejecuta la tarea de priorización una vez, en un hilo no bloqueante
-    logging.info("Iniciando la ejecución única de priorización de reclamos al arranque.")
-    thread = threading.Thread(target=run_cron_priorizacion)
-    thread.start()
+    # logging.info("Iniciando la ejecución única de priorización de reclamos al arranque.")
+    # thread = threading.Thread(target=run_cron_priorizacion)
+    # thread.start()
 
 # Registrar el router con el prefijo '/lm/ml'
 app.include_router(api_router, prefix="/lm/ml")
 
 if __name__ == "__main__":
+    # Asegura que el método de inicio de multiprocessing sea 'spawn' para mayor robustez, especialmente en Windows.
+    # Esto debe hacerse antes de que se creen objetos Process.
+    multiprocessing.set_start_method('spawn', force=True)
     import uvicorn
     uvicorn.run("main:app", host="127.0.0.1", port=8000, reload=False)

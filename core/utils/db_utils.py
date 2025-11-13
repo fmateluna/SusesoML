@@ -2,6 +2,7 @@ from functools import wraps
 from sqlalchemy.exc import SQLAlchemyError
 from core.database import SessionLocal
 import logging
+import os
 
 from core.pae_database import PaeSessionLocal # Import new session
 
@@ -22,12 +23,12 @@ def db_session(func):
             return result
         except SQLAlchemyError as e:
             session.rollback()
-            logger.error(f"Error de base de datos en {func.__name__}: {str(e)}")
-            raise ValueError(f"Error de base de datos: {str(e)}") from e
+            logger.error(f"[PID: {os.getpid()}] >Error de base de datos en {func.__name__}: {str(e)}")
+            raise ValueError(f"[PID: {os.getpid()}] >Error de base de datos: {str(e)}") from e
         except Exception as e:
             session.rollback()
-            logger.error(f"Error inesperado en {func.__name__}: {str(e)}")
-            raise ValueError(f"Error inesperado: {str(e)}") from e
+            logger.error(f"[PID: {os.getpid()}] >Error inesperado en {func.__name__}: {str(e)}")
+            raise ValueError(f"[PID: {os.getpid()}] >Error inesperado: {str(e)}") from e
         finally:
             session.close()
     return wrapper
@@ -46,12 +47,12 @@ def pae_db_session(func):
             return result
         except SQLAlchemyError as e:
             session.rollback()
-            logger.error(f"Error de base de datos PAE en {func.__name__}: {str(e)}")
-            raise ValueError(f"Error de base de datos PAE: {str(e)}") from e
+            logger.error(f"[PID: {os.getpid()}] >Error de base de datos PAE en {func.__name__}: {str(e)}")
+            raise ValueError(f"[PID: {os.getpid()}] >Error de base de datos PAE: {str(e)}") from e
         except Exception as e:
             session.rollback()
-            logger.error(f"Error inesperado en {func.__name__}: {str(e)}")
-            raise ValueError(f"Error inesperado: {str(e)}") from e
+            logger.error(f"[PID: {os.getpid()}] >Error inesperado en {func.__name__}: {str(e)}")
+            raise ValueError(f"[PID: {os.getpid()}] >Error inesperado: {str(e)}") from e
         finally:
             session.close()
     return wrapper
