@@ -240,7 +240,7 @@ class ProcesadorReclamos:
         # 5. Calcular semáforos
         smf = self.resumenMensualMedicos(
             df_semaforo, 
-            meses=config.get('meses_semaforo', [4, 5, 6]),
+            meses=config.get('meses_semaforo', [mes_a_revisar_no]),
             anio=filter_year
         )
         
@@ -273,32 +273,3 @@ class ProcesadorReclamos:
         
         reclamos_logger.info("Procesamiento completado exitosamente!")
         return denuncias_semaforo
-
-# Ejemplo de uso
-def main():
-    # Configuración
-    config = {
-        'ruta_denuncias': "./standalone/reclamos/PRODUCCIÓN UCLM_072025_v2___.csv",
-        'ruta_relatos': "./standalone/reclamos/relato_uclm_24072025.csv",
-        'ruta_detalle_uclm': "./standalone/reclamos/SabanaUCLMDetalle_40214_2025-7-22_5-20-2.csv",
-        'ruta_lme': './standalone/reclamos/lme_capacitacion.csv',
-        'ruta_semaforo': './standalone/reclamos/df_to_semaforo-julio.csv',
-        'meses_semaforo': [4, 5, 6],
-        'ordenar_por': "Fecha",
-        'umbral_priorizacion': 0.94,
-        'nombre_archivo_salida': "smf_denuncias_jun_25.csv"
-    }
-    
-    # Parámetros principales
-    mes_a_revisar_no = 6
-    filter_year = 2025
-    
-    # Ejecutar procesamiento
-    procesador = ProcesadorReclamos()
-    resultado = procesador.procesarReclamos(mes_a_revisar_no, filter_year, config)
-    
-    return resultado
-
-# Ejecutar si es el script principal
-if __name__ == "__main__":
-    resultado = main()

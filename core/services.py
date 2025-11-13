@@ -564,7 +564,7 @@ def consulta_semaforo_reclamos(session, anio: int, mes: int, rut_medico: Optiona
         logger.error(f"[PID: {os.getpid()}] >Error de base de datos en consulta_semaforo_reclamos: {e}")
         raise
 
-# fmateluna : Se agrega rut_medico como opcional
+
 @db_session
 def consulta_licencias_periodo(session, anio: int, mes: int, rut_medico: Optional[str] = None) -> list[dict]:
     """
@@ -574,3 +574,58 @@ def consulta_licencias_periodo(session, anio: int, mes: int, rut_medico: Optiona
     params = {"anio": str(anio), "mes": f"{mes:02d}", "rut_medico": rut_medico}
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
+
+
+@db_session
+def save_reclamos_data_summary(
+    session,
+    request_hash: str,
+    anio: int,
+    mes: int,
+    rut_medico: Optional[str],
+    status: str
+) -> dict:
+    """
+    Inserta o actualiza un registro en la tabla ml.reclamos_data con el estado del procesamiento.
+    """
+    upsert_query = """
+
+   INSERT INTO ml.reclamos_data (hash, anio, mes, rut_medico, estado, created_at)
+    VALUES (:hash, :anio, :mes, :rut_medico, :estado, :created_at)
+    ON CONFLICT (hash) DO UPDATE
+    SET estado = EXCLUDED.estado,
+        created_at = EXCLUDED.created_at,
+        anio = EXCLUDED.anio,
+        mes = EXCLUDED.mes,
+        rut_medico = EXCLUDED.rut_medico
+    RETURNING hash, anio, mes, rut_medico, estado, created_at
+    """
+    params = {
+        "hash": request_hash,
+        "anio": anio,
+        "mes": mes,
+        "rut_medico": rut_medico,
+        "estado": status,
+        "created_at": datetime.now()
+    }
+    try:
+        result = session.execute(text(upsert_query), params).fetchone()
+
+        if not result:
+            raise ValueError("No se pudo registrar o actualizar el estado en ml.reclamos_data")
+        logger.info(f"[PID: {os.getpid()}] >Estado de reclamos guardado/actualizado: {status} para hash {request_hash}")
+        return {
+            "hash": result.hash,
+            "anio": result.anio,
+            "mes": result.mes,
+            "rut_medico": result.rut_medico,
+            "estado": result.estado,
+            "created_at": result.created_at.isoformat()
+        }
+    except SQLAlchemyError as e:
+        session.rollback()
+        logger.error(f"[PID: {os.getpid()}] >Error al guardar/actualizar el estado de reclamos para hash {request_hash}: {e}", exc_info=True)
+        raise
+
+
+

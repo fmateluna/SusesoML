@@ -117,6 +117,10 @@ class PriorizacionProcessor:
             return smf.head(show_results)
         return smf
 
+    import os
+    import pandas as pd
+    from typing import List, Optional
+
     def resumenMensualMedicos(
         self,
         df: pd.DataFrame,
@@ -131,8 +135,12 @@ class PriorizacionProcessor:
         pieces = []
         for m in meses:
             mdf = self.semaforoWatson(df, mes=m, anio=anio, show_results=None)
-            mdf = mdf.add_prefix(f"[PID: {os.getpid()}] >m{m}_")
-            mdf = mdf.rename(columns={f"m{m}_rut_medico": "rut_medico"})
+            prefix = f"[PID: {os.getpid()}] >m{m}_"
+            mdf = mdf.add_prefix(prefix)
+            # Corrige el rename para que coincida con el prefijo completo
+            full_rut_col = f"{prefix}rut_medico"
+            if full_rut_col in mdf.columns:
+                mdf = mdf.rename(columns={full_rut_col: "rut_medico"})
             pieces.append(mdf)
 
         out = df_medicos.copy()
