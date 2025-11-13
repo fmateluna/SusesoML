@@ -3,7 +3,13 @@ import numpy as np
 
 from core.repo_anomalias.run_anomalias import exec_anomalias
 from core.services import insert_anomalias
+import logging
 from core.utils.license_processing import count_licenses_by_entity, count_licenses_by_otorgamiento, count_licenses_by_diagnosis
+# from core.utils.custom_logger import get_custom_logger
+
+# Configura el logger personalizado para anomalías
+# anomalias_logger = get_custom_logger('anomalias_logger', 'anomalias.log')
+anomalias_logger = logging.getLogger('anomalias_logger')
 
 # Función que calcula la cantidad de días de reposo otorgados por una entidad (médico, trabajador, empleador) en un periodo de tiempo definido. MUY OPTIMIZADA.
 def count_dias_reposo_by_entity(df, entity_col='rut_medico', window_days=30):
@@ -411,6 +417,7 @@ def count_licenses_by_empleador(df, window_days=30):
     return full_result
 
 def calcular_anomalias(df_licencias: pd.DataFrame):
+    anomalias_logger.info(f"Inicia el cálculo de anomalías para {len(df_licencias)} licencias.")
 
     # Filtros iniciales sugeridos
     df_licencias = df_licencias[df_licencias['dias_reposo'] <= 365]
@@ -426,6 +433,7 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
     df_licencias = df_licencias.merge(trabajadores_por_empleador, on='rut_empleador', how='left')
     df_licencias['n_trabajadores'] = df_licencias[['n_trabajadores_reportados', 'n_trabajadores_observados']].max(axis=1)
     """
+    anomalias_logger.info("Inicia el pre-procesamiento y creación de atributos para el modelo de anomalías.")
     #########################################################################################################################
     # Atributos de la licencia
     #########################################################################################################################
@@ -595,5 +603,8 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
 
     # Puedes guardar el resultado si lo deseas:
     # df_seleccion.to_csv('df_licencias_procesado.csv', index=False)
+    anomalias_logger.info("Ingeniería de características finalizada. Ejecuta el modelo de anomalías.")
     df_licencias_exec = exec_anomalias(df_licencias)
+    anomalias_logger.info(f"Ejecución del modelo finalizada. Se enviarán {len(df_licencias_exec)} registros a la base de datos.")
     insert_anomalias(df_licencias_exec)
+    anomalias_logger.info("Finaliza el cálculo de anomalías.")

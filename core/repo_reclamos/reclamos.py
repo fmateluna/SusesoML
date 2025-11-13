@@ -1,11 +1,10 @@
-# main.py
 from __future__ import annotations
 
 import argparse
 import logging
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pandas as pd
 import yaml
@@ -15,6 +14,7 @@ from core.repo_reclamos.priorizacion import PrioritizationConfig, PriorizacionPr
 from models.consultas import ReclamosRequest
 
 
+reclamos_logger = logging.getLogger('reclamos_logger')
 
 logging.basicConfig(
     level=logging.INFO,
@@ -30,13 +30,15 @@ def load_config(path: str) -> Dict[str, Any]:
 
 # fmateluna : Se agrega rut_medico como parametro opcional
 def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medico: Optional[str] = None) -> AdmisibilidadConfig:
-
+    # Estos ya no se usan
     path_anio = str(anio)
     path_mes = f"{mes:02d}" 
 
     paths = cfg.get("paths", {})
     encoding = cfg.get("encoding", {})
     csv_sep = cfg.get("csv_sep", {})
+    # hasta aca
+
     filters = cfg.get("filters", {})
     nlp_cfg = cfg.get("nlp", {})
 
@@ -88,15 +90,17 @@ def build_priorizacion_cfg(cfg: Dict[str, Any]) -> tuple[SemaforoConfig, Priorit
     )
     return smf_cfg, prio_cfg
 
-def prepare_for_excel_json(df: pd.DataFrame) -> pd.DataFrame:
-    """Prepara DataFrame para serialización JSON compatible con Excel"""
-    df_copy = df.copy()
-    num_cols = df_copy.select_dtypes(include="number").columns
-    for c in num_cols:
-        df_copy[c] = df_copy[c].map(lambda x: f"{x:.4f}".replace(".", ",") if pd.notnull(x) else "")
-    return df_copy
+# def prepare_for_excel_json(df: pd.DataFrame) -> pd.DataFrame:
+#     """Prepara DataFrame para serialización JSON compatible con Excel"""
+#     df_copy = df.copy()
+#     num_cols = df_copy.select_dtypes(include="number").columns
+#     for c in num_cols:
+#         df_copy[c] = df_copy[c].map(lambda x: f"{x:.4f}".replace(".", ",") if pd.notnull(x) else "")
+#     return df_copy
 
-def lee_reclamos(request: ReclamosRequest) :
+def procesa_reclamos(request: ReclamosRequest) :
+    rut_medico_str = f"para el rut_medico: {request.rut_medico}" if request.rut_medico else "para todos los médicos"
+    reclamos_logger.info(f"Inicia procesamiento de reclamos para el período: {request.anio}-{request.mes:02d} {rut_medico_str}.")
 
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
 
@@ -104,14 +108,14 @@ def lee_reclamos(request: ReclamosRequest) :
     config_path = f"{base_path}/config.yml"
     
     cfg_dict = load_config(config_path)
-    # Se pasa el rut_medico desde el request
-    # fmateluna : Se pasa el rut_medico desde el request
     adm_cfg = build_admisibilidad_cfg(cfg_dict,request.anio,request.mes, request.rut_medico)
     smf_cfg, prio_cfg = build_priorizacion_cfg(cfg_dict)
 
     # ---------- Load ----------
+    reclamos_logger.info("Inicia la carga de datos desde la base de datos.")
     adm = AdmisibilidadProcessor(adm_cfg)
     df, denuncias, relatos, detalle, lme = adm.load_all()
+    reclamos_logger.info(f"Carga de datos finalizada. Registros cargados: df_semaforo={len(df)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
 
     # ---------- Base df_to_semaforo post-processing from notebook ----------
     for col in ["propensity_score_rn", "propensity_score_umbrales", "propensity_score_iforest"]:
@@ -120,8 +124,6 @@ def lee_reclamos(request: ReclamosRequest) :
     # Dates
     if "fecha_emision" in df.columns:
         df["fecha_emision"] = pd.to_datetime(df["fecha_emision"], errors="coerce")
-
-    logger.info("df_to_semaforo loaded with %d rows.", len(df))
 
     # ---------- Denuncias preprocessing & month filter ----------
     denuncias_prep = adm.preprocess_denuncias(denuncias)
@@ -144,19 +146,13 @@ def lee_reclamos(request: ReclamosRequest) :
     denuncias_previas_relato = adm.consolidate_admisibilidad(denuncias_previas_relato, denuncias_licencias)
 
     # ---------- Priorización ----------
+    reclamos_logger.info("Inicia la etapa de priorización.")
     pr = PriorizacionProcessor(smf_cfg, prio_cfg)
     denuncias_semaforo = pr.run_prioritization(df, denuncias_previas_relato)
+    reclamos_logger.info(f"Priorización finalizada. Se generaron {len(denuncias_semaforo)} resultados.")
 
     # ---------- Output ----------
-    out_path = Path(prio_cfg.output_filename).resolve()
-    #df_prepared = PriorizacionProcessor.export_to_csv_excel_friendly(denuncias_semaforo, str(out_path))
-    logger.info("Pipeline completed. Output: %s", out_path)
+    # df_prepared = prepare_for_excel_json(denuncias_semaforo)
     
-    df_prepared = prepare_for_excel_json(denuncias_semaforo)  # Nueva función
-    
-    # Opcional: guardar CSV si aún lo necesitas
-    out_path = Path(prio_cfg.output_filename).resolve()
-    df_prepared.to_csv(out_path, index=False, sep=";", encoding="latin-1")
-    
-    logger.info("Pipeline completed. Output prepared for JSON")
-    return denuncias_semaforo.to_dict(orient='records')  # Retorna diccionario, no JSON strin
+    reclamos_logger.info(f"Finaliza procesamiento de reclamos para el período: {request.anio}-{request.mes:02d}. Se devuelven {len(denuncias_semaforo)} registros.")
+    return denuncias_semaforo.to_dict(orient='records')

@@ -8,8 +8,8 @@ from typing import List, Optional
 import numpy as np
 import pandas as pd
 
-logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)
+import logging
+reclamos_logger = logging.getLogger('reclamos_logger')
 
 
 @dataclass
@@ -189,7 +189,7 @@ class PriorizacionProcessor:
             # Keep 4 decimals and convert dot to comma for locales using comma
             df_copy[c] = df_copy[c].map(lambda x: f"{x:.4f}".replace(".", ",") if pd.notnull(x) else "")
         df_copy.to_csv(filename, index=False, sep=";", encoding="latin-1")
-        logger.info("Exported CSV to %s", filename)
+        reclamos_logger.info("Exported CSV to %s", filename)
         return df_copy
 
     # -------------------- Orchestration --------------------

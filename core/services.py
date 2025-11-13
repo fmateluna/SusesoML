@@ -232,7 +232,6 @@ def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_me
     return result
 
 
-@db_session
 def clear_umbral_data_table(session) -> None:
     """
     Vacía la tabla ml.umbral_data.

@@ -6,6 +6,11 @@ import pickle as pkl
 import os
 
 from core.services import insert_umbrales
+# from core.utils.custom_umbrales_logger import get_custom_umbrales_logger
+
+# Configura el umbrales_logger personalizado para umbrales
+# umbrales_umbrales_logger = get_custom_umbrales_logger('umbrales_umbrales_logger', 'umbrales.log')
+umbrales_umbrales_logger = logging.getLogger('umbrales_umbrales_logger')
 
 class Umbrales:
     def __init__(self, col_frecuencia):
@@ -36,7 +41,7 @@ class Umbrales:
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
+umbrales_logger = logging.getLogger(__name__)
 
 _model_cache = {}
 
@@ -44,7 +49,7 @@ _model_cache = {}
 def get_model(model_path):
     """Obtiene el modelo desde cache o lo carga si no existe."""
     if model_path not in _model_cache:
-        logger.info(f"Cargando modelo desde disco: {model_path}")
+        umbrales_logger.info(f"Cargando modelo desde disco: {model_path}")
         with open(model_path, 'rb') as f:
             _model_cache[model_path] = pkl.load(f)
     return _model_cache[model_path]
@@ -65,7 +70,7 @@ def preload_models(base_path):
     for m in models:
         path = os.path.join(base_path, m)
         get_model(path)  # carga y mete a _model_cache
-    logger.info("Todos los modelos precargados en memoria.")
+    umbrales_logger.info("Todos los modelos precargados en memoria.")
 
 
 def apply_model(df, config):
@@ -73,10 +78,10 @@ def apply_model(df, config):
     model_path = config['path']
     try:
         model = get_model(model_path)  # Usa cache en lugar de disco
-        logger.info(f"Ejecutando MODELO {model_path}")
+        umbrales_logger.info(f"Ejecutando MODELO {model_path}")
 
         if hasattr(model, 'window_days') and model.window_days != config['days']:
-            logger.warning(f"El modelo en {model_path} tiene window_days={model.window_days}, esperado {config['days']}.")
+            umbrales_umbrales_logger.warning(f"El modelo en {model_path} tiene window_days={model.window_days}, esperado {config['days']}.")
 
         # Fit y predict_proba, agregando la columna de score
         model.fit(df)
@@ -85,12 +90,12 @@ def apply_model(df, config):
             base_name = filename.replace("umbral_model_", "").replace(".pkl", "")
             score_col = f"score_{base_name}"
             df[score_col] = model.predict_proba(df)
-            logger.info(f"Modelo {model_path} aplicado. Columna agregada: {score_col}")
+            umbrales_logger.info(f"Modelo {model_path} aplicado. Columna agregada: {score_col}")
         else:
-            logger.warning(f"El modelo en {model_path} no tiene 'col_frecuencia'.")
+            umbrales_logger.warning(f"El modelo en {model_path} no tiene 'col_frecuencia'.")
         return df
     except Exception as e:
-        logger.error(f"Error al aplicar modelo {model_path}: {str(e)}")
+        umbrales_logger.error(f"Error al aplicar modelo {model_path}: {str(e)}")
         return df
     
 
@@ -129,15 +134,24 @@ def process_umbral_data(df, entity_col='rut_medico', base_path=None):
         return df
 
     except Exception as e:
-        logger.error(f"Error procesando datos de umbral: {str(e)}")
+        umbrales_logger.error(f"Error procesando datos de umbral: {str(e)}")
         raise
 
 
 def process_umbral_and_save_db(data_df, dias, entity_col):
+    print(f"DEBUG: process_umbral_and_save_db alcanzado (PID: {os.getpid()}).")
+    umbrales_umbrales_logger.info(f"Inicia cálculo y guardado de umbrales. Parámetros: dias={dias}, entidad={entity_col}, registros_iniciales={len(data_df)}.")
     sys.modules['__main__'].Umbrales = Umbrales
     try:
         df_processed = process_umbral_data(data_df)
-        logger.info("Procesamiento completado. DataFrame procesado:")
-        insert_umbrales(df_processed, fecha=data_df['fecha_emision'], dias=dias, columna_entidad=entity_col)
+        umbrales_umbrales_logger.info(f"Procesamiento de datos de umbral finalizado. Se procesaron {len(df_processed)} registros.")
+        
+        # La función insert_umbrales es llamada aquí, pero su log va al umbrales_logger principal.
+        # Podríamos agregar un log aquí después de la inserción si es necesario.
+        insert_umbrales(df_processed, fecha=data_df['fecha_emision'].iloc[0] if not data_df.empty else None, dias=dias, columna_entidad=entity_col)
+        
+        umbrales_umbrales_logger.info(f"Finaliza el guardado de {len(df_processed)} registros de umbrales en la base de datos.")
     except Exception as e:
-        logger.error(f"Error en la ejecución UMBRALES, no fue posible guardar en base de datos: {str(e)}")
+        umbrales_umbrales_logger.error(f"Error en la ejecución de UMBRALES: {str(e)}", exc_info=True)
+        # También se loggea en el umbrales_logger general para visibilidad en la consola principal
+        umbrales_logger.error(f"Error en la ejecución UMBRALES, no fue posible guardar en base de datos: {str(e)}")

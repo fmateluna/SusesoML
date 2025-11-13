@@ -149,6 +149,15 @@ class AdmisibilidadProcessor:
     def consulta_base_semaforo(self, mes: int, anio: int, rut_medico: Optional[str] = None) -> pd.DataFrame:    
         # Se agrega el rut_medico a la consulta
         data = consulta_semaforo_reclamos(anio=anio, mes=mes, rut_medico=rut_medico)
+        if not data:
+            # Si la consulta a la base de datos no devuelve resultados,
+            # se retorna un DataFrame vacío pero con las columnas esperadas.
+            # Esto evita un KeyError en etapas posteriores del pipeline
+            # cuando se intenta acceder a columnas que no existen en un DataFrame sin cabeceras.
+            return pd.DataFrame(columns=[
+                'id_lic', 'rut_medico', 'fecha_emision', 'propensity_score_rn', 
+                'propensity_score_umbrales', 'propensity_score_iforest'
+            ])
         df = pd.DataFrame(data)
         return df        
 

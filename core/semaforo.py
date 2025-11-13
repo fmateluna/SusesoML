@@ -1,8 +1,14 @@
 import pandas as pd
 import numpy as np
+import logging
 from typing import Optional
 
 from core.services import guardar_semaforo
+# from core.utils.custom_logger import get_custom_logger
+
+# Configura el logger personalizado para semáforo
+# semaforo_logger = get_custom_logger('semaforo_logger', 'semaforo.log')
+semaforo_logger = logging.getLogger('semaforo_logger')
 
 class SemaforoWatson:
   """
@@ -143,9 +149,12 @@ class SemaforoWatson:
         if np.all(np.isfinite(col_vals)) and np.all(np.mod(col_vals, 1) == 0):
           semaforo_watson[col] = col_vals.astype("Int64")
 
-
-        for _, row in semaforo_watson.iterrows():
-            guardar_semaforo(row)
+      # Guardado en base de datos
+      num_registros_a_guardar = len(semaforo_watson)
+      semaforo_logger.info(f"Inicia el guardado de {num_registros_a_guardar} registros de semáforo en la base de datos.")
+      for _, row in semaforo_watson.iterrows():
+          guardar_semaforo(row)
+      semaforo_logger.info(f"Finaliza el guardado de registros de semáforo.")
 
 
       if show_results is not None:
@@ -191,19 +200,10 @@ def procesar_semaforo(
 ) -> pd.DataFrame:
     """
     Procesa un DataFrame con datos médicos y devuelve los resultados de SemaforoWatson para todas las filas.
-    
-    Args:
-        df_calculos (pd.DataFrame): DataFrame con los datos médicos a procesar.
-        mes (int): Mes para filtrar los datos (default: 8).
-        anio (int): Año para filtrar los datos (default: 2025).
-        sort_values_by (str): Columna para ordenar los resultados (default: "smf_rn").
-        umbral_decorte (float): Umbral para propensity_score_umbrales (default: 0.6).
-        rn_ln_mes (int): Límite para rn por mes (default: 2).
-        umbral_deanomalias (float): Umbral para anomalías (default: 0.5).
-    
-    Returns:
-        pd.DataFrame: DataFrame con los resultados de SemaforoWatson.
     """
+    parametros_str = f"mes={mes}, anio={anio}, sort_by='{sort_values_by}', umbral_corte={umbral_decorte}, rn_limite={rn_ln_mes}, umbral_anomalias={umbral_deanomalias}"
+    semaforo_logger.info(f"Inicia procesamiento de semáforo con {len(df_calculos)} registros. Parámetros: {parametros_str}.")
+    
     df_calculos["fecha_emision"] = pd.to_datetime(df_calculos["fecha_emision"], errors="coerce")
     
     total_filas = len(df_calculos)
@@ -231,4 +231,5 @@ def procesar_semaforo(
     if anio is not None and mes is not None:
         resultado["rango"] = f"{anio}-{mes:02d}"
     
+    semaforo_logger.info(f"Finaliza procesamiento de semáforo. Se generaron {len(resultado)} resultados.")
     return resultado

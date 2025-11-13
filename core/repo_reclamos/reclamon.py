@@ -8,8 +8,8 @@ import warnings
 from sklearn.model_selection import train_test_split
 from sklearn.linear_model import LogisticRegression
 import re
-
-
+import logging
+reclamos_logger = logging.getLogger('reclamos_logger')
 
 class ProcesadorReclamos:
     def __init__(self):
@@ -26,7 +26,7 @@ class ProcesadorReclamos:
         pd.DataFrame: DataFrame con las denuncias procesadas
         """
         denuncias = pd.read_csv(ruta_denuncias, sep="|")
-        print("Archivo cargado: PRODUCCIÓN UCLM (denuncias PAE)")
+        reclamos_logger.info("Archivo cargado: PRODUCCIÓN UCLM (denuncias PAE)")
         
         # Procesamiento básico
         denuncias["sancionado"] = denuncias["tipo_sancion"].notna().astype(int)
@@ -47,7 +47,7 @@ class ProcesadorReclamos:
         """
         relatos = pd.read_csv(ruta_relatos, encoding='latin-1', 
                             on_bad_lines='skip', sep=",")
-        print("Archivo cargado: RELATOS UCLM")
+        reclamos_logger.info("Archivo cargado: RELATOS UCLM")
         return relatos
     
     def obtenerDetalleUCLM(self, ruta_detalle):
@@ -62,7 +62,7 @@ class ProcesadorReclamos:
         """
         detalleUCLM = pd.read_csv(ruta_detalle, encoding='latin-1', 
                                 on_bad_lines='skip', sep="|")
-        print("Archivo cargado: SÁBANA UCLM DETALLE (denuncias + licencias asociadas)")
+        reclamos_logger.info("Archivo cargado: SÁBANA UCLM DETALLE (denuncias + licencias asociadas)")
         return detalleUCLM
     
     def obtenerLME(self, ruta_lme):
@@ -96,7 +96,7 @@ class ProcesadorReclamos:
         pd.DataFrame: DataFrame con datos procesados para semáforo
         """
         df = pd.read_csv(ruta_semaforo)
-        print("Archivo cargado: LME con puntajes calculados RN, UM, AN")
+        reclamos_logger.info("Archivo cargado: LME con puntajes calculados RN, UM, AN")
         
         # Procesamiento
         df["propensity_score_rn"] = df["propensity_score_rn"].fillna(0).astype(int)
@@ -210,7 +210,7 @@ class ProcesadorReclamos:
         filter_year (int): Año a revisar
         config (dict): Diccionario con rutas y configuraciones
         """
-        print(f"Iniciando procesamiento para {mes_a_revisar_no}/{filter_year}")
+        reclamos_logger.info(f"Iniciando procesamiento para {mes_a_revisar_no}/{filter_year}")
         
         # 1. Obtener datos
         denuncias = self.obtenerDenuncias(config['ruta_denuncias'])
@@ -226,7 +226,7 @@ class ProcesadorReclamos:
         denuncias_filtradas = denuncias[(denuncias['fecha_ingreso'] >= start_date) & 
                                       (denuncias['fecha_ingreso'] < end_date)]
         
-        print(f"Denuncias filtradas para {start_date.strftime('%B %Y')}: {len(denuncias_filtradas)}")
+        reclamos_logger.info(f"Denuncias filtradas para {start_date.strftime('%B %Y')}: {len(denuncias_filtradas)}")
         
         # 3. Procesar relatos
         denuncias_previas_relato = self.procesarRelatos(relatos, denuncias_filtradas)
@@ -270,7 +270,7 @@ class ProcesadorReclamos:
             config.get('nombre_archivo_salida', f"smf_denuncias_{mes_a_revisar_no}_{filter_year}.csv")
         )
         
-        print("Procesamiento completado exitosamente!")
+        reclamos_logger.info("Procesamiento completado exitosamente!")
         return denuncias_semaforo
 
 # Ejemplo de uso

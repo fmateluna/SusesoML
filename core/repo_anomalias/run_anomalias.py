@@ -2,12 +2,16 @@ import sys
 import pandas as pd
 import numpy as np
 from typing import List, Optional, Tuple
+import logging
 
 from sklearn.preprocessing import MinMaxScaler
 from sklearn.ensemble import IsolationForest
 
 import os
 import pickle as pkl
+
+# Obtiene el logger que ya fue configurado en main.py
+anomalias_logger = logging.getLogger('anomalias_logger')
 
 
 class AnomaliesModel:
@@ -164,13 +168,22 @@ class AnomaliesModel:
         return self.transform(df_seleccion, decision_col=decision_col, propensity_col=propensity_col)
 
 def exec_anomalias(df_seleccion: pd.DataFrame):
+    anomalias_logger.info(f"Inicia la ejecución del modelo IsolationForest con {len(df_seleccion)} registros.")
     sys.modules['__main__'].AnomaliesModel = AnomaliesModel
 
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
-    with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:
-        modelo = pkl.load(f)
-        df_resultados = modelo.fit_transform(df_seleccion)
-        return df_resultados
+    try:
+        with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:
+            modelo = pkl.load(f)
+            df_resultados = modelo.fit_transform(df_seleccion)
+            anomalias_logger.info(f"Modelo IsolationForest ejecutado. Se devuelven {len(df_resultados)} registros con scores de anomalía.")
+            return df_resultados
+    except FileNotFoundError:
+        anomalias_logger.error(f"No se encontró el archivo del modelo en la ruta: {base_path}/modelo_anomalias.pkl")
+        raise
+    except Exception as e:
+        anomalias_logger.error(f"Ocurrió un error al ejecutar el modelo de anomalías: {e}", exc_info=True)
+        raise
 
         
 

@@ -10,55 +10,113 @@ from core.semaforo import procesar_semaforo
 from core.services import consulta_licencia, consulta_semaforo, manage_umbral_status, query_masivo,query_score_licencia,query_data_umbral
 import logging
 import os
-import csv
 from multiprocessing import  Queue
 import pandas as pd
 from models.consultas import ConsultaLicenciaRequest, SemaforoRequest
 
-import pandas as pd
-from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, StreamingResponse
 import io
+import uuid
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-from fastapi.responses import StreamingResponse
-import io
-
-def to_csv_str(df):
-    buffer = io.StringIO()
-    df.to_csv(buffer, index=False)
-    buffer.seek(0)
-    return StreamingResponse(
-        iter([buffer.getvalue()]),  # iterador síncrono
-        media_type="text/csv"
-    )
-
-
 def to_json(df: pd.DataFrame):
     data = df.fillna("").to_dict(orient="records")
     return JSONResponse(content=jsonable_encoder(data))
 
-def to_csv(df: pd.DataFrame):
-    buffer = io.StringIO()
-    df.to_csv(buffer, index=False)
-    buffer.seek(0)
-    return StreamingResponse(
-        buffer,
-        media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=consulta.csv"}
-    )
-
-
 FORMAT_DISPATCHER = {
-    "json": to_json,
-    "csv": to_csv_str
+    "json": to_json
 }
 
 execute_scores_map = {}
-managerPickle =  ManagerPickle()
+request_to_task_map = {}
+task_status_map = {}
+managerPickle = ManagerPickle()
+
+def get_task_status(task_id: str):
+    return task_status_map.get(task_id, {"status": "not_found"})
+
+def propensy_score(fecha_inicio: str, fecha_fin: str, background_tasks: "BackgroundTasks"):
+    logger.info(f"Petición recibida para propensy_score para fechas {fecha_inicio} a {fecha_fin}.")
+    request_key = makeKeyFromFechas(fecha_inicio, fecha_fin)
+    
+    # Si ya existe una tarea para este request, devolver el task_id existente.
+    if request_key in request_to_task_map:
+        existing_task_id = request_to_task_map[request_key]
+        logger.info(f"Tarea existente encontrada para {request_key}: {existing_task_id}. Devolviendo estado actual.")
+        return {"task_id": existing_task_id, "status": "accepted", "details": "Tarea ya existe, esta en ejecución."}
+
+    # Si no existe, crear una nueva tarea.
+    task_id = str(uuid.uuid4())
+    request_to_task_map[request_key] = task_id
+    task_status_map[task_id] = {"status": "starting", "details": "Iniciando cálculo de propensity score."}
+    
+    logger.info(f"Iniciando nueva tarea en segundo plano para propensy_score. Task ID: {task_id}.")
+    background_tasks.add_task(propensy_score_background, fecha_inicio, fecha_fin, task_id)
+    
+    return {"task_id": task_id, "status": "accepted"}
+
+def propensy_score_background(fecha_inicio: str, fecha_fin: str, task_id: str):
+    logger.info(f"Tarea {task_id}: Iniciando ejecución en segundo plano de propensy_score para fechas {fecha_inicio} a {fecha_fin}.")
+    try:
+        key = makeKeyFromFechas(fecha_inicio, fecha_fin)
+        
+        task_status_map[task_id] = {"status": "processing", "details": "Ejecutando cálculo masivo de score."}
+        
+        if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:
+            execute_scores_map[key] = "run"
+            logger.info(f"Tarea {task_id}: Ejecutando managerPickle.ejecuta_masivo por primera vez para {key}.")
+            managerPickle.ejecuta_masivo(fecha_inicio, fecha_fin)
+        else:
+            logger.info(f"Tarea {task_id}: Consultando y ejecutando managerPickle.consulta_ejecuta_masivo para {key}.")
+            managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
+
+        task_status_map[task_id] = {"status": "processing", "details": "Ejecutando procesos adicionales."}
+        logger.info(f"Tarea {task_id}: Llamando a orquestar_calculos_adicionales.")
+        orquestar_calculos_adicionales(fecha_fin, task_id)
+
+        task_status_map[task_id] = {"status": "completed", "details": "Todos los procesos finalizaron correctamente."}
+        logger.info(f"Tarea {task_id}: Ejecución en segundo plano de propensy_score finalizada correctamente.")
+
+    except Exception as e:
+        logger.error(f"Tarea {task_id}: Error durante el cálculo de score en segundo plano para la tarea {task_id}: {e}", exc_info=True)
+        task_status_map[task_id] = {"status": "error", "details": str(e)}
+
+def orquestar_calculos_adicionales(fecha_fin: str, task_id: str):
+    """
+    Ejecuta la secuencia de cálculos post-score: Umbrales, Anomalías y Semáforo, actualizando el estado de la tarea.
+    """
+    logger.info(f"Tarea {task_id}: Inicia la orquestación de cálculos adicionales.")
+    try:
+        task_status_map[task_id] = {"status": "processing", "details": "Paso 1: Generando datos de umbrales..."}
+        dias_umbral = 60
+        entidad_umbral = "rut_medico"
+        df_umbrales = generate_data_umbral(fecha_fin, dias_umbral, entidad_umbral)
+        
+        if not df_umbrales.empty:
+            logger.info(f"Tarea {task_id}: Se generaron datos de umbrales. Se procede con el cálculo de Umbrales y Anomalías.")
+            task_status_map[task_id] = {"status": "processing", "details": "Paso 2: Guardando resultados de umbrales en la base de datos..."}
+            process_umbral_and_save_db(df_umbrales, dias_umbral, entidad_umbral)
+
+            task_status_map[task_id] = {"status": "processing", "details": "Paso 3: Calculando anomalías..."}
+            calcular_anomalias(df_umbrales)
+        else:
+            logger.warning(f"Tarea {task_id}: No se generaron datos de umbrales. Se omiten los pasos de guardado de Umbrales y cálculo de Anomalías.")
+            # Actualizamos el estado para que el usuario sepa que se omitieron pasos
+            task_status_map[task_id] = {"status": "processing", "details": "Paso 3: Omitiendo Umbrales y Anomalías por falta de datos."}
+
+
+        task_status_map[task_id] = {"status": "processing", "details": "Paso 4: Procesando el semáforo..."}
+        fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
+        procesar_semaforo(año=fecha_dt.year, mes=fecha_dt.month)
+        
+        logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
+
+    except Exception as e:
+        logger.error(f"Error durante los procesos adicionales para la tarea {task_id}: {e}", exc_info=True)
+        raise e # Relanzamos la excepción para que sea capturada en el nivel superior.
 
 def masivo(fecha_inicio: str, fecha_fin: str):
     from_db = query_masivo(fecha_inicio, fecha_fin)
@@ -66,53 +124,6 @@ def masivo(fecha_inicio: str, fecha_fin: str):
         return []
     result = managerPickle.ejecuta_masivo(from_db, fecha_inicio, fecha_fin)
     return result
-
-def propensy_score(fecha_inicio: str, fecha_fin: str):
-    key = makeKeyFromFechas(fecha_inicio, fecha_fin)
-    resultado_score = None
-
-    # Consulta si la ejecución masiva ya se realizó por los parámetros de fechas del request
-    if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:        
-        execute_scores_map[key] = "run"
-        resultado_score = managerPickle.ejecuta_masivo(fecha_inicio, fecha_fin)
-    else:
-        resultado_score = managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
-
-    # --- INICIO Actualizacion de ejeucion noviembre ---
-    try:
-        logger.info("Iniciando procesos adicionales de Umbrales, Anomalías y Semáforo...")
-        
-        # 1. y 2. Generar y guardar datos de Umbrales
-        logger.info("Paso 1: Generando datos de umbrales...")
-        # Usamos fecha_fin como la fecha base para el cálculo de umbrales
-        dias_umbral = 60
-        entidad_umbral = "rut_medico"
-        df_umbrales = generate_data_umbral(fecha_fin, dias_umbral, entidad_umbral)
-        
-        if not df_umbrales.empty:
-            logger.info("Paso 2: Guardando resultados de umbrales en la base de datos...")
-            process_umbral_and_save_db(df_umbrales, dias_umbral, entidad_umbral)
-
-            # 3. Calcular Anomalías (usa los mismos datos que umbrales)
-            logger.info("Paso 3: Calculando anomalías...")
-            calcular_anomalias(df_umbrales)
-        else:
-            logger.warning("No se generaron datos de umbrales, se omiten los pasos de guardar umbrales y calcular anomalías.")
-
-        # 4. Ejecutar Semáforo
-        logger.info("Paso 4: Procesando el semáforo...")
-        fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
-        procesar_semaforo(año=fecha_dt.year, mes=fecha_dt.month)
-        
-        logger.info("Procesos adicionales finalizados correctamente.")
-
-    except Exception as e:
-        logger.error(f"Error durante la ejecución de procesos adicionales (Umbrales, Anomalías, Semáforo): {e}", exc_info=True)
-        # dejo el try catch encapsulado en el caso de que afete a la rutina estable
-
-    # --- FIN Actualizacion de ejeucion noviembre ---
-
-    return resultado_score
 
 def propensy_score_licencia(fecha_inicio: str, fecha_fin: str):
     from_db = query_score_licencia(fecha_inicio, fecha_fin)
@@ -148,17 +159,6 @@ def makeKeyFromFechas(fecha_inicio: str, fecha_fin: str):
     """
     return f"{fecha_inicio}_{fecha_fin}"    
 
-
-def save_to_csv(df: pd.DataFrame, output_path: str) -> None:
-    """Save DataFrame to a CSV file."""
-    os.makedirs(os.path.dirname(output_path), exist_ok=True)
-    if df.empty:
-        logger.warning(f"No existen resultado {output_path}")
-        return
-    df.to_csv(output_path, index=False, encoding='utf-8')
-    logger.info(f"CSV guardado {output_path}")
-    
-
 def consulta_licencia_from_rest(where_query: ConsultaLicenciaRequest):
     df = consulta_licencia(where_query)  
     content_type = getattr(where_query, "content_type", "json").lower()
@@ -166,11 +166,20 @@ def consulta_licencia_from_rest(where_query: ConsultaLicenciaRequest):
 
     return converter(df)
 
+from core.utils.logging_config import setup_loggers
+
+# ... (el resto de las importaciones)
 
 def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_hash: str, status_queue: Queue) -> None:
+    # --- INICIO DE LA MODIFICACIÓN ---
+    # Configurar los loggers para este nuevo proceso.
+    # Esto es crucial porque los procesos hijos no heredan la configuración de logging del padre.
+    setup_loggers()
+    print(f"DEBUG: setup_loggers() llamado en process_umbral_task (PID: {os.getpid()}).")
+    # --- FIN DE LA MODIFICACIÓN ---
 
     try:
-
+        # ... (el resto de la función sin cambios)
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -216,6 +225,13 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
             )
         )
     except Exception as e:
+        # Es importante que el logger también esté disponible en caso de error.
+        logger = logging.getLogger(__name__) # Logger general
+        umbrales_logger = logging.getLogger('umbrales_logger') # Logger específico
+        
+        logger.error(f"Error en el proceso de umbral (hash: {request_hash}): {e}", exc_info=True)
+        umbrales_logger.error(f"Error en el proceso de umbral (hash: {request_hash}): {e}", exc_info=True)
+
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
