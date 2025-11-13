@@ -49,12 +49,14 @@ El proyecto sigue una estructura modular para organizar el código de manera ló
 │       ├── __init__.py
 │       ├── db_utils.py          # Decorador para la gestión de sesiones de DB.
 │       ├── license_processing.py# Funciones comunes para el procesamiento de licencias.
+│       ├── logging_config.py    # Configuración centralizada de loggers.
 │       └── task_manager.py      # Gestión de tareas asíncronas y caching.
 ├── models/
 │   └── consultas.py             # Definiciones de modelos Pydantic para la API.
 ├── sql/
 │   └── *.sql                    # Archivos SQL con las consultas a la base de datos.
 ├── README.md                    # Este archivo.
+├── cron_priorizacion.py         # Script para la ejecución programada de la priorización de reclamos.
 └── main.py                      # Punto de entrada de la aplicación FastAPI.
 
 ```
@@ -63,10 +65,10 @@ El proyecto sigue una estructura modular para organizar el código de manera ló
 
 ### `api/endpoints.py`
 
-*   **Propósito:** Define los endpoints de la API RESTful utilizando FastAPI. Es el punto de entrada para todas las solicitudes externas.
+*   **Propósito:** Define los puntos de entrada de la API RESTful utilizando FastAPI. Es el punto de entrada para todas las solicitudes externas.
 *   **Funcionamiento:**
     *   Recibe las solicitudes HTTP y valida los datos de entrada con modelos Pydantic (`models/consultas.py`).
-    *   Utiliza el `task_manager` (`core/utils/task_manager.py`) para iniciar tareas de procesamiento de larga duración en segundo plano (ej. consultas de licencias, cálculo de semáforos) y gestionar su estado y resultados en caché.
+    *   Utiliza el `task_manager` (`core/utils/task_manager.py`) para iniciar tareas de procesamiento de larga duración (ej. consultas de licencias, cálculo de semáforos) y gestionar su estado y resultados en caché.
     *   Retorna respuestas JSON o CSV.
 
 ### `core/manager.py`
@@ -140,6 +142,23 @@ Estos módulos fueron creados para centralizar funcionalidades comunes, promovie
     *   El decorador `@db_session` encapsula la lógica de apertura, commit, rollback y cierre de sesiones de SQLAlchemy.
     *   Permite que las funciones de `core/services.py` se enfoquen únicamente en la lógica SQL, sin preocuparse por la gestión explícita de la sesión.
 
+### `core/utils/logging_config.py`
+
+*   **Propósito:** Configuración centralizada de todos los loggers de la aplicación.
+*   **Funcionamiento:**
+    *   Define y configura los manejadores de archivo para cada logger personalizado (`priorizacron`, `reclamos`, `umbrales`, `anomalias`, `semaforo`).
+    *   Asegura que los loggers estén correctamente inicializados tanto en el proceso principal como en los procesos hijos (multiprocessing).
+
+## Tareas Programadas (Cron Jobs)
+
+### `cron_priorizacion.py`
+
+*   **Propósito:** Script encargado de ejecutar periódicamente el proceso completo de priorización de reclamos.
+*   **Funcionamiento:**
+    *   Se ejecuta automáticamente al iniciar la aplicación (una vez) y luego de forma programada (ej. semanalmente o mensualmente) a través de un planificador de tareas (`core/scheduler.py`).
+    *   Obtiene el mes y año actual, construye una solicitud de reclamos y llama a `procesa_reclamos` (`core/repo_reclamos/reclamos.py`) para iniciar el pipeline de procesamiento.
+    *   Registra el inicio y fin de su ejecución, así como cualquier error.
+
 ## Conceptos Clave
 
 ### Principio DRY (Don't Repeat Yourself)
@@ -148,7 +167,7 @@ La refactorización reciente se centró en aplicar el principio DRY. Esto se log
 
 ### Procesamiento Asíncrono y Caching
 
-Para manejar operaciones que pueden tomar tiempo (ej. consultas complejas a la DB, cálculos intensivos), el sistema utiliza un patrón asíncrono. Las solicitudes de la API inician estas tareas en hilos separados a través del `task_manager`. Los resultados se almacenan en un caché, permitiendo que la API responda rápidamente con el estado de la tarea y que los clientes consulten los resultados una vez que estén disponibles.
+Para manejar operaciones que pueden tomar tiempo (ej. consultas complejas a la DB, cálculos intensivos), el sistema utiliza un patrón asíncrono. Las solicitudes de la API inician estas tareas en hilos o procesos separados a través del `task_manager`. Los resultados se almacenan en un caché, permitiendo que la API responda rápidamente con el estado de la tarea y que los clientes consulten los resultados una vez que estén disponibles.
 
 ### Gestión de Sesiones de Base de Datos
 
@@ -164,7 +183,7 @@ Se han implementado mejoras en el rendimiento de las consultas SQL para asegurar
 
 2.  **`sql/consulta1.sql`**:
     *   **Mejora**: La condición de búsqueda para `especialidad_profesional` ha sido cambiada de la función `similarity` a `ILIKE`.
-    *   **Beneficio**: La función `similarity` es computacionalmente costosa sin configuraciones de índices avanzadas. `ILIKE` ofrece una forma más eficiente de realizar búsquedas de texto parcial e insensible a mayúsculas/minúsculas, mejorando el rendimiento de la consulta. Para una eficiencia óptima con `ILIKE` en búsquedas de texto libre, se recomienda la instalación de la extensión `pg_trgm` y la creación de índices `GIN` o `GIST` en la columna `descripcion_especialidad_profesional`.
+    *   **Beneficio**: `ILIKE` ofrece una forma más eficiente de realizar búsquedas de texto parcial e insensible a mayúsculas/minúsculas, mejorando el rendimiento de la consulta. Para una eficiencia óptima con `ILIKE` en búsquedas de texto libre, se recomienda la instalación de la extensión `pg_trgm` y la creación de índices `GIN` o `GIST` en la columna `descripcion_especialidad_profesional`.
 
 ## Modelos de Umbrales
 
@@ -246,26 +265,3 @@ uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 La API estará disponible en `http://0.0.0.0:8000/lm/ml`. Puedes acceder a la documentación interactiva en `http://0.0.0.0:8000/lm/ml/docs`.
-
-RECLAMOS :
-
-1. `semaforo.csv`:
-* Tablas involucradas: ml.licencias, ml.propensity_score, ml.umbrales y ml.anomalias.
-* Archivos creados: Se creó la consulta sql/consulta_semaforo_reclamos.sql y la función consulta_semaforo_reclamos en core/services.py.
-
-2. `detalle_uclm.csv`:
-* Tabla involucrada: pae_sabana.uclmdetalle.
-* Archivos creados/modificados: Se creó la consulta sql/consulta_detalle_uclm.sql, la función consulta_detalle_uclm en core/services.py, y se configuró la nueva conexión a la base de datos en
-core/pae_database.py y core/utils/db_utils.py.
-
-3. `relato.xlsx`:
-* Tabla involucrada: pae_sabana.relato.
-* Archivos creados: Se creó la consulta sql/consulta_relato.sql y la función consulta_relato en core/services.py.
-
-4. `denuncias_pae.csv`:
-* Tabla involucrada: pae_sabana.uclmbase.
-* Archivos creados: Se creó la consulta sql/consulta_denuncias_pae.sql y la función consulta_denuncias_pae en core/services.py.
-
-5. `lme.csv`:
-* Tabla involucrada: ml.licencias.
-* Archivos creados: Se creó la consulta sql/consulta_licencias_periodo.sql y la función consulta_licencias_periodo en core/services.py.
