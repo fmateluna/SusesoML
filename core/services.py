@@ -629,3 +629,23 @@ def save_reclamos_data_summary(
 
 
 
+@db_session
+def guardar_priorizacion(session, data: dict):
+    """
+    Cron de ejecucion Prioritario : Guarda el último resultado de priorización para una denuncia.
+    Utiliza una operación de "upsert" (INSERT ON CONFLICT) para actualizar el registro si ya existe
+    uno para la misma `denuncia_id`.
+    """
+    query = read_sql_file("./sql/guardar_priorizacion.sql")
+    session.execute(text(query), data)
+    logger.info(f"Guardada priorizacion para denuncia_id: {data.get('denuncia_id')}")
+
+@db_session
+def guardar_priorizacion_historica(session, data: dict):
+    """
+    Cron de ejecucion Prioritario : Guarda un registro en el historial de priorización de denuncias.
+    Cada ejecución del cron insertará un nuevo registro en la tabla `ml.priorizacion_historica`.
+    """
+    query = read_sql_file("./sql/guardar_priorizacion_historica.sql")
+    session.execute(text(query), data)
+    logger.info(f"Guardado histórico de priorizacion para denuncia_id: {data.get('denuncia_id')}")

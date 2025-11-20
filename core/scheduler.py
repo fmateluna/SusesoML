@@ -3,7 +3,7 @@ import os
 import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
-from cron_priorizacion import run_cron_priorizacion
+from core.cron_priorizacion import ejecutar_proceso_priorizacion
 import os
 # Usamos el logger estándar aquí, ya que este módulo es de configuración
 logger = logging.getLogger(__name__)
@@ -24,7 +24,7 @@ def start_scheduler():
         cron_expression = cron_config['times']['cron']
         
         scheduler.add_job(
-            run_cron_priorizacion,
+            ejecutar_proceso_priorizacion,
             trigger=CronTrigger.from_crontab(cron_expression),
             id="cron_priorizacion_job",
             name="Ejecuta el proceso de priorización de reclamos",

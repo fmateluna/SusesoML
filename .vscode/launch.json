@@ -7,39 +7,39 @@
             "request": "launch",
             "program": "${workspaceFolder}/standalone/reclamos/reclamon.py",
             "cwd": "${workspaceFolder}",
-            "justMyCode": false,            
-        },  
+            "justMyCode": false,
+        },
         {
             "name": "TEST_RECLAMOS",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/standalone/reclamos/main.py",
             "cwd": "${workspaceFolder}",
-            "justMyCode": false,            
-        },  
-                {
+            "justMyCode": false,
+        },
+        {
             "name": "TEST_ANOMALIAS",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/standalone/anomalias/anomalias.py",
             "cwd": "${workspaceFolder}",
-            "justMyCode": false,            
-        },  
+            "justMyCode": false,
+        },
         {
             "name": "TEST_UMBRALES",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/standalone/umbrales.py",
             "cwd": "${workspaceFolder}",
-            "justMyCode": false,            
-        },        
+            "justMyCode": false,
+        },
         {
             "name": "TEST",
             "type": "python",
             "request": "launch",
             "program": "${workspaceFolder}/standalone/test_pkl.py",
             "cwd": "${workspaceFolder}",
-            "justMyCode": false,            
+            "justMyCode": false,
         },
         {
             "name": "MANAGER_SUSESO",
@@ -57,19 +57,41 @@
             ],
             "cwd": "${workspaceFolder}",
             "justMyCode": false,
-            "env": {                
-                "DB_HOST":"192.168.150.84",
-                "DB_PORT":"5432",
-                "DB_NAME":"suseso_ml",
-                "DB_USER":"postgres",
-                "DB_PASS":"IDKFA2025",
-
-                "DB_SUSESO_HOST":"192.168.151.8",
-                "DB_SUSESO_PORT":"5432",
-                "DB_SUSESO_NAME":"suseso",
-                "DB_SUSESO_USER":"sus_c04",
-                "DB_SUSESO_PASS":"9wB97N2d",
-
+            "env": {
+                "DB_HOST": "192.168.150.84",
+                "DB_PORT": "5432",
+                "DB_NAME": "suseso_ml",
+                "DB_USER": "postgres",
+                "DB_PASS": "IDKFA2025",
+                "DB_SUSESO_HOST": "192.168.151.8",
+                "DB_SUSESO_PORT": "5432",
+                "DB_SUSESO_NAME": "suseso",
+                "DB_SUSESO_USER": "sus_c04",
+                "DB_SUSESO_PASS": "9wB97N2d",
+            }
+        },
+        {
+            "name": "CRON_PRIORIZACION",
+            "type": "python",
+            "request": "launch",
+            "program": "${workspaceFolder}/cron_priorizacion.py",
+            "console": "integratedTerminal",
+            "args": [
+                "run"
+            ],
+            "cwd": "${workspaceFolder}",
+            "justMyCode": false,
+            "env": {
+                "DB_HOST": "192.168.150.84",
+                "DB_PORT": "5432",
+                "DB_NAME": "suseso_ml",
+                "DB_USER": "postgres",
+                "DB_PASS": "IDKFA2025",
+                "DB_SUSESO_HOST": "192.168.151.8",
+                "DB_SUSESO_PORT": "5432",
+                "DB_SUSESO_NAME": "suseso",
+                "DB_SUSESO_USER": "sus_c04",
+                "DB_SUSESO_PASS": "9wB97N2d"
             }
         }
     ]

@@ -72,12 +72,16 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medic
     )
 
 
-def build_priorizacion_cfg(cfg: Dict[str, Any]) -> tuple[SemaforoConfig, PrioritizationConfig]:
+def build_priorizacion_cfg(cfg: Dict[str, Any], anio: int, mes: int) -> tuple[SemaforoConfig, PrioritizationConfig]:
+    # fmateluna: Se calcula dinámicamente el rango de 6 meses hacia atrás.
+    meses_anteriores = [(mes - i - 1) % 12 + 1 for i in range(6)]
+    meses_anteriores.reverse()  # Ordenar de más antiguo a más reciente
+
     semaforo = cfg.get("semaforo", {})
     prioritization = cfg.get("prioritization", {})
 
     smf_cfg = SemaforoConfig(
-        meses=semaforo.get("meses", [4, 5, 6]),
+        meses=semaforo.get("meses", meses_anteriores),
         rn_ln_mes=semaforo.get("rn_ln_mes", 400),
         umbral_decorte=semaforo.get("umbral_decorte", 0.5),
         umbral_deanomalias=semaforo.get("umbral_deanomalias", 0.5),
@@ -99,8 +103,9 @@ def build_priorizacion_cfg(cfg: Dict[str, Any]) -> tuple[SemaforoConfig, Priorit
 #     return df_copy
 
 def procesa_reclamos(request: ReclamosRequest) :
+    periodo_str = f"[PERIODO: {request.anio}-{request.mes:02d}]"
     rut_medico_str = f"para el rut_medico: {request.rut_medico}" if request.rut_medico else "para todos los médicos"
-    reclamos_logger.info(f"[PID: {os.getpid()}] >Inicia procesamiento de reclamos para el período: {request.anio}-{request.mes:02d} {rut_medico_str}.")
+    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Inicia procesamiento de reclamos para el período: {request.anio}-{request.mes:02d} {rut_medico_str}.")
 
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
 
@@ -109,13 +114,13 @@ def procesa_reclamos(request: ReclamosRequest) :
     
     cfg_dict = load_config(config_path)
     adm_cfg = build_admisibilidad_cfg(cfg_dict,request.anio,request.mes, request.rut_medico)
-    smf_cfg, prio_cfg = build_priorizacion_cfg(cfg_dict)
+    smf_cfg, prio_cfg = build_priorizacion_cfg(cfg_dict, request.anio, request.mes)
 
     # ---------- Load ----------
-    reclamos_logger.info("Inicia la carga de datos desde la base de datos.")
+    reclamos_logger.info(f"{periodo_str} Inicia la carga de datos desde la base de datos.")
     adm = AdmisibilidadProcessor(adm_cfg)
     df, denuncias, relatos, detalle, lme = adm.load_all()
-    reclamos_logger.info(f"[PID: {os.getpid()}] >Carga de datos finalizada. Registros cargados: df_semaforo={len(df)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
+    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Carga de datos finalizada. Registros cargados: df_semaforo={len(df)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
 
     # ---------- Base df_to_semaforo post-processing from notebook ----------
     for col in ["propensity_score_rn", "propensity_score_umbrales", "propensity_score_iforest"]:
@@ -146,13 +151,13 @@ def procesa_reclamos(request: ReclamosRequest) :
     denuncias_previas_relato = adm.consolidate_admisibilidad(denuncias_previas_relato, denuncias_licencias)
 
     # ---------- Priorización ----------
-    reclamos_logger.info("Inicia la etapa de priorización.")
+    reclamos_logger.info(f"{periodo_str} Inicia la etapa de priorización.")
     pr = PriorizacionProcessor(smf_cfg, prio_cfg)
     denuncias_semaforo = pr.run_prioritization(df, denuncias_previas_relato)
-    reclamos_logger.info(f"[PID: {os.getpid()}] >Priorización finalizada. Se generaron {len(denuncias_semaforo)} resultados.")
+    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Priorización finalizada. Se generaron {len(denuncias_semaforo)} resultados.")
 
     # ---------- Output ----------
     # df_prepared = prepare_for_excel_json(denuncias_semaforo)
     
-    reclamos_logger.info(f"[PID: {os.getpid()}] >Finaliza procesamiento de reclamos para el período: {request.anio}-{request.mes:02d}. Se devuelven {len(denuncias_semaforo)} registros.")
+    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Finaliza procesamiento de reclamos para el período: {request.anio}-{request.mes:02d}. Se devuelven {len(denuncias_semaforo)} registros.")
     return denuncias_semaforo.to_dict(orient='records')

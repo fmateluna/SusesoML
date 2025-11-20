@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from api.endpoints import router as api_router
 from core.scheduler import start_scheduler
 import threading
-from cron_priorizacion import run_cron_priorizacion
+from core.cron_priorizacion import ejecutar_proceso_priorizacion
 import logging
 from core.utils.logging_config import setup_loggers
 import multiprocessing # Importar multiprocessing
@@ -20,14 +20,9 @@ def startup_event():
     # 1. Configura los loggers para toda la aplicación
     setup_loggers()
     
-    # 2. Inicia el planificador para las ejecuciones futuras (semanales)
+    # 2. Inicia el planificador para las ejecuciones futuras
     logging.info("Iniciando el planificador de tareas programadas.")
     start_scheduler()
-
-    # 3. Ejecuta la tarea de priorización una vez, en un hilo no bloqueante
-    # logging.info("Iniciando la ejecución única de priorización de reclamos al arranque.")
-    # thread = threading.Thread(target=run_cron_priorizacion)
-    # thread.start()
 
 # Registrar el router con el prefijo '/lm/ml'
 app.include_router(api_router, prefix="/lm/ml")
