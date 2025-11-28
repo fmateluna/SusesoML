@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
 
-# fmateluna : Configuracion para loggear las queries de SQLAlchemy
+# Configuracion para loggear las queries de SQLAlchemy
 import logging
 logging.basicConfig()
 logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)

@@ -1,6 +1,7 @@
 from threading import Lock
 import calendar
 from datetime import date, datetime
+from fastapi import BackgroundTasks
 from fastapi.encoders import jsonable_encoder
 from core.anomalias import calcular_anomalias
 from core.manager_score import ManagerPickle
@@ -51,7 +52,7 @@ def propensy_score(fecha_inicio: str, fecha_fin: str, background_tasks: "Backgro
     if request_key in request_to_task_map:
         existing_task_id = request_to_task_map[request_key]
         logger.info(f"[PID: {os.getpid()}] >Tarea existente encontrada para {request_key}: {existing_task_id}. Devolviendo estado actual.")
-        return {"task_id": existing_task_id, "status": "accepted", "details": "Tarea ya existe, esta en ejecución."}
+        return get_task_status(existing_task_id)
 
     # Si no existe, crear una nueva tarea.
     task_id = str(uuid.uuid4())
@@ -93,6 +94,7 @@ def orquestar_calculos_adicionales(fecha_fin: str, task_id: str):
     """
     Ejecuta la secuencia de cálculos post-score: Umbrales, Anomalías y Semáforo, actualizando el estado de la tarea.
     """
+    umbrales_logger = logging.getLogger('umbrales_logger') 
     logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Inicia la orquestación de cálculos adicionales.")
     try:
         task_status_map[task_id] = {"status": "processing", "details": "Paso 1: Generando datos de umbrales..."}

@@ -33,7 +33,7 @@ def db_session(func):
             session.close()
     return wrapper
 
-# fmateluna : Se agrega un decorador para la nueva base de datos pae_sabana
+# Se agrega un decorador para la nueva base de datos pae_sabana
 def pae_db_session(func):
     """
     Decorador para gestionar la sesión de SQLAlchemy para la base de datos PAE.

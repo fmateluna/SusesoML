@@ -1,4 +1,4 @@
-# fmateluna : Se crea este archivo para manejar la nueva conexion a la base de datos pae_sabana
+# Se crea este archivo para manejar la nueva conexion a la base de datos pae_sabana
 import os
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
 
-# fmateluna : Configuracion para loggear las queries de SQLAlchemy
+# Configuracion para loggear las queries de SQLAlchemy
 import logging
 logging.basicConfig()
 logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)

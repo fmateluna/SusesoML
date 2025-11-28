@@ -67,7 +67,7 @@ class AdmisibilidadConfig:
     
     mes_a_revisar: int = 6
     anio: int = 2025
-    # fmateluna : Se agrega el rut_medico como parametro opcional
+    # Se agrega el rut_medico como parametro opcional
     rut_medico: Optional[str] = None
 
     # nlp: NLPConfig = NLPConfig()
@@ -98,7 +98,7 @@ class AdmisibilidadProcessor:
         """
         logger.info("Loading from DATABASE df_to_semaforo...")        
         # Se pasa el rut_medico a la consulta de semaforo
-        # fmateluna : Se pasa el rut_medico a la consulta de semaforo
+        # Se pasa el rut_medico a la consulta de semaforo
         df = self.consulta_base_semaforo(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
         logger.info("Loading denuncias (PAE) from DATABASE...")
@@ -108,22 +108,22 @@ class AdmisibilidadProcessor:
         relatos = self.consulta_base_relatos(self.cfg.mes_a_revisar, self.cfg.anio)
 
         logger.info("Loading detalle UCLM...")
-        # fmateluna : Se reemplaza la lectura del CSV por una consulta a la base de datos
+        # Se reemplaza la lectura del CSV por una consulta a la base de datos
         detalle = self.consulta_base_detalle_uclm(self.cfg.mes_a_revisar, self.cfg.anio)
 
         logger.info("Loading From DataBase LME...")
-        # fmateluna : Se reemplaza la lectura del CSV por una consulta a la base de datos
+        # Se reemplaza la lectura del CSV por una consulta a la base de datos
         lme = self.consulta_base_lme(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
         return df, denuncias, relatos, detalle, lme
     
-    # fmateluna : Se crea esta funcion para consultar el detalle de uclm
+    # Se crea esta funcion para consultar el detalle de uclm
     def consulta_base_detalle_uclm(self, mes: int, anio: int) -> pd.DataFrame:
         data = consulta_detalle_uclm(anio=anio, mes=mes)
         df = pd.DataFrame(data)
         return df
 
-    # fmateluna : Se crea esta funcion para consultar los relatos
+    # Se crea esta funcion para consultar los relatos
     def consulta_base_relatos(self, mes: int, anio: int) -> pd.DataFrame:
         data = consulta_relatos(anio=anio, mes=mes)
         df = pd.DataFrame(data)
@@ -131,7 +131,7 @@ class AdmisibilidadProcessor:
         df = df.rename(columns={"folio_fui": "FUN_FOLIO", "relato": "FUN_RELATO"})
         return df
 
-    # fmateluna : Se crea esta funcion para consultar las denuncias PAE
+    # Se crea esta funcion para consultar las denuncias PAE
     def consulta_base_denuncias_pae(self, mes: int, anio: int) -> pd.DataFrame:
         data = consulta_denuncias_pae(anio=anio, mes=mes)
         df = pd.DataFrame(data)
@@ -139,7 +139,7 @@ class AdmisibilidadProcessor:
         df["origen"] = "PAE"
         return df
 
-    # fmateluna : Se agrega el rut_medico como opcional a la consulta
+    # Se agrega el rut_medico como opcional a la consulta
     def consulta_base_lme(self, mes: int, anio: int, rut_medico: Optional[str] = None) -> pd.DataFrame:    
         data = consulta_licencias_periodo(anio=anio, mes=mes, rut_medico=rut_medico)
         df = pd.DataFrame(data)
@@ -218,7 +218,7 @@ class AdmisibilidadProcessor:
         d["sancionado"] = d["tipo_sancion"].notna().astype(int)
         if "causal_homologada" in d.columns:
             d = d[d["causal_homologada"] == self.cfg.causal_homologada]
-        # fmateluna : Si se especifica un rut_medico, se filtra por el
+        # Si se especifica un rut_medico, se filtra por el
         if self.cfg.rut_medico:
             d = d[d["rut_medico"] == self.cfg.rut_medico]
         d["fecha_ingreso"] = pd.to_datetime(d["fecha_ingreso"], errors="coerce")
@@ -296,7 +296,7 @@ class AdmisibilidadProcessor:
         detalleUCLM = detalleUCLM.copy()
 
         # Filters
-        # fmateluna : Si se especifica un rut_medico, se filtra por el
+        # Si se especifica un rut_medico, se filtra por el
         if self.cfg.rut_medico:
             lme = lme[lme["rut_medico"] == self.cfg.rut_medico]
         if "dias_reposo" in lme.columns:

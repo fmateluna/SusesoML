@@ -49,7 +49,7 @@ class UmbralRequest(BaseModel):
 class ReclamosRequest(BaseModel):
     mes: int
     anio: int
-    # fmateluna : Se agrega rut_medico como opcional para filtrar
+    # Se agrega rut_medico como opcional para filtrar
     rut_medico: Optional[str] = None
 
 class Consulta1Response(BaseModel):

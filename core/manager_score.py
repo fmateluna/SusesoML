@@ -151,7 +151,17 @@ class ManagerPickle:
         
         def run_background():
             result_map[request_key]['status']="extract_data"
-            datos_licencias = query_masivo(fecha_inicio, fecha_fin)            
+            datos_licencias = query_masivo(fecha_inicio, fecha_fin)
+            # AÑADIR ESTA VALIDACIÓN
+            if datos_licencias is None or datos_licencias.empty:
+                logger.warning(f"[PID: {os.getpid()}] >query_masivo no retornó datos o el DataFrame está vacío para el rango {fecha_inicio} - {fecha_fin}.")
+                with result_map_lock:
+                    result_map[request_key] = {
+                        'status': 'completed_no_data',
+                        'rules_executed': 0,
+                        'reason': 'No se encontraron licencias para procesar en el rango de fechas especificado.'
+                    }
+                return # Salir de la función si no hay datos            
             try:
                 asyncio.run(self.ini_ejecuta_masivo(datos_licencias, fecha_inicio, fecha_fin))
             except Exception as e:

@@ -13,7 +13,7 @@ from datetime import datetime
 from core.utils.db_utils import db_session, pae_db_session # Import new decorator
 import os
 
-# fmateluna : Se crea esta nueva funcion para la consulta de detalle uclm
+# Se crea esta nueva funcion para la consulta de detalle uclm
 @pae_db_session
 def consulta_detalle_uclm(session, anio: int, mes: int) -> list[dict]:
     """
@@ -24,7 +24,7 @@ def consulta_detalle_uclm(session, anio: int, mes: int) -> list[dict]:
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
 
-# fmateluna : Se crea esta nueva funcion para la consulta de relatos
+# Se crea esta nueva funcion para la consulta de relatos
 @pae_db_session
 def consulta_relatos(session, anio: int, mes: int) -> list[dict]:
     """
@@ -35,7 +35,7 @@ def consulta_relatos(session, anio: int, mes: int) -> list[dict]:
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
 
-# fmateluna : Se crea esta nueva funcion para la consulta de denuncias PAE
+# Se crea esta nueva funcion para la consulta de denuncias PAE
 @pae_db_session
 def consulta_denuncias_pae(session, anio: int, mes: int) -> list[dict]:
     """
@@ -148,8 +148,13 @@ def query_masivo(fecha_inicio: str, fecha_fin: str) -> pd.DataFrame:
     }
     try:
         result = execute_query("./sql/masivo.sql", query_params)
+        # AÑADIR ESTE LOG
         if not result:
+            logger.warning(f"[PID: {os.getpid()}] >execute_query para masivo.sql retornó vacío para el rango {fecha_inicio} - {fecha_fin}.")
             return pd.DataFrame()
+        
+        logger.info(f"[PID: {os.getpid()}] >execute_query para masivo.sql retornó {len(result)} filas. Primera fila: {result[0] if result else 'N/A'}")
+
         df = pd.DataFrame(result, columns=[
             "id_licencia", "folio", "dias_reposo", "fecha_emision",
             "fecha_inicio_reposo", "especialidad_profesional", "cod_diagnostico_principal"
@@ -310,16 +315,19 @@ def get_umbral_status(session, request_hash: str) -> dict:
 @db_session
 def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, columna_entidad: str) -> None:
     """
-    Inserta los datos procesados de umbrales en la tabla ml.umbrales.
+    Inserta los datos procesados de umbrales en la tabla ml.umbrales uno por uno.
     """
     if results.empty:
         logger.warning("DataFrame vacío, no se insertan datos en ml.umbrales")
         return
+    umbrales_logger = logging.getLogger('umbrales_logger') 
+    # Preparar DataFrame
     results['fecha'] = fecha
     results['dias'] = dias
     results['columna_entidad'] = columna_entidad
     if 'id_licencia' in results.columns:
         results = results.rename(columns={'id_licencia': 'id_lic'})
+    
     expected_columns = [
         'id_lic', 'folio', 'fecha', 'dias', 'columna_entidad',
         'dias_reposo', 'fecha_emision', 'fecha_inicio_reposo',
@@ -333,13 +341,16 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
         'score_frecuencia_J_30D_medico', 'score_frecuencia_M_30D_medico',
         'score_n_remotas_30D', 'score_n_presenciales_30D'
     ]
+    
+    # Completar columnas faltantes
     for col in expected_columns:
         if col not in results.columns:
             if 'score_' in col:
                 results[col] = 0.0
             else:
-                logger.warning(f"[PID: {os.getpid()}] >Columna {col} no encontrada en DataFrame, se seteará a NULL")
+                logger.warning(f"[PID: {os.getpid()}] > Columna {col} no encontrada en DataFrame, se seteará a NULL")
                 results[col] = None
+
     upsert_query = """
     INSERT INTO ml.umbrales (
         id_lic, folio, fecha, dias, columna_entidad,
@@ -368,12 +379,36 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
     )
     ON CONFLICT (id_lic, dias, columna_entidad) DO NOTHING
     """
-    params_list = [
-        {col: row.get(col, None) for col in expected_columns}
-        for _, row in results.iterrows()
-    ]
-    session.execute(text(upsert_query), params_list)
-    logger.info(f"[PID: {os.getpid()}] >Insertados/actualizados {len(params_list)} registros en ml.umbrales")
+    
+    total_registros = len(results)
+    registros_insertados = 0
+    registros_procesados = 0
+    
+    umbrales_logger.info(f"[PID: {os.getpid()}] > Iniciando inserción de {total_registros} registros uno por uno...")
+    
+    # Insertar registros uno por uno
+    for _, row in results.iterrows():
+        try:
+            params = {col: row.get(col, None) for col in expected_columns}
+            result = session.execute(text(upsert_query), params)
+            session.commit()
+            registros_procesados += 1
+            
+            # Si rowcount es 1, significa que se insertó el registro (no hubo conflicto)
+            if result.rowcount == 1:
+                registros_insertados += 1
+            
+            # Mostrar progreso cada 50 registros o en el último
+            if registros_procesados % 50 == 0 or registros_procesados == total_registros:
+                umbrales_logger.info(f"[PID: {os.getpid()}] > Progreso: {registros_procesados}/{total_registros} registros procesados, {registros_insertados} insertados")
+                
+        except Exception as e:
+            umbrales_logger.error(f"[PID: {os.getpid()}] > Error insertando registro {registros_procesados + 1}: {str(e)}")
+            # Continuar con el siguiente registro en lugar de fallar completamente
+            registros_procesados += 1
+            continue
+    
+    umbrales_logger.info(f"[PID: {os.getpid()}] > Inserción completada: {registros_insertados} nuevos registros insertados de {total_registros} procesados")
 
 @db_session
 def insert_anomalias(session, results: pd.DataFrame) -> None:
@@ -381,8 +416,9 @@ def insert_anomalias(session, results: pd.DataFrame) -> None:
     Inserta los datos procesados de anomalías en la tabla ml.anomalias.
     Usa INSERT con ON CONFLICT DO NOTHING para manejar duplicados (basado en id_lic).
     """
+    anomalias_logger = logging.getLogger('anomalias_logger')
     if results.empty:
-        logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
+        anomalias_logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
         return
     if 'id_licencia' in results.columns:
         results = results.rename(columns={'id_licencia': 'id_lic'})
@@ -426,7 +462,8 @@ def insert_anomalias(session, results: pd.DataFrame) -> None:
         for _, row in results.iterrows()
     ]
     session.execute(text(upsert_query), params_list)
-    logger.info(f"[PID: {os.getpid()}] >Insertados/actualizados {len(params_list)} registros en ml.anomalias")
+    session.commit()
+    anomalias_logger.info(f"[PID: {os.getpid()}] >Insertados/actualizados {len(params_list)} registros en ml.anomalias")
 
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
@@ -548,7 +585,7 @@ def consulta_semaforo(session, rango: str = None, rut_medico: str = None) -> lis
     result = session.execute(text(query), params).fetchall()
     return [dict(r._mapping) for r in result]
 
-# fmateluna : Se crea esta nueva funcion para la consulta de reclamos
+# Se crea esta nueva funcion para la consulta de reclamos
 @db_session
 def consulta_semaforo_reclamos(session, anio: int, mes: int, rut_medico: Optional[str] = None) -> list[dict]:
     """
@@ -610,7 +647,7 @@ def save_reclamos_data_summary(
     }
     try:
         result = session.execute(text(upsert_query), params).fetchone()
-
+        session.commit()
         if not result:
             raise ValueError("No se pudo registrar o actualizar el estado en ml.reclamos_data")
         logger.info(f"[PID: {os.getpid()}] >Estado de reclamos guardado/actualizado: {status} para hash {request_hash}")

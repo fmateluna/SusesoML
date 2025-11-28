@@ -28,7 +28,7 @@ def load_config(path: str) -> Dict[str, Any]:
         return yaml.safe_load(f)
 
 
-# fmateluna : Se agrega rut_medico como parametro opcional
+# Se agrega rut_medico como parametro opcional
 def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medico: Optional[str] = None) -> AdmisibilidadConfig:
     # Estos ya no se usan
     path_anio = str(anio)
@@ -63,7 +63,7 @@ def build_admisibilidad_cfg(cfg: Dict[str, Any], anio : int, mes: int, rut_medic
         causal_homologada=filters.get("causal_homologada", "Denuncia a profesional emisor"),
         mes_a_revisar=mes,
         anio=anio,
-        # fmateluna : Se agrega el rut_medico a la configuracion
+        # Se agrega el rut_medico a la configuracion
         rut_medico=rut_medico,
         nlp=NLPConfig(
             enabled=bool(nlp_cfg.get("enabled", True)),
