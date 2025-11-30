@@ -397,10 +397,13 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
             # Si rowcount es 1, significa que se insertó el registro (no hubo conflicto)
             if result.rowcount == 1:
                 registros_insertados += 1
-            
+            # Muestro en el log el id_lic
+            id_lic_pro = row.get("id_lic", "SIN_ID")
+            fecha_emision_pro = row.get("fecha_emision", "SIN_FECHA")
+            umbrales_logger.info(f" licencia procesada : {id_lic_pro} fecha emision {fecha_emision_pro} ")
             # Mostrar progreso cada 50 registros o en el último
             if registros_procesados % 50 == 0 or registros_procesados == total_registros:                
-                umbrales_logger.info(f" Progreso: lic= {row.get("id_lic")} {registros_procesados}/{total_registros} registros procesados, {registros_insertados} insertados")
+                umbrales_logger.info(f" Progreso: {registros_procesados}/{total_registros} registros procesados, {registros_insertados} insertados")
                 
         except Exception as e:
             umbrales_logger.error(f" Error insertando registro {registros_procesados + 1}: {str(e)}")
