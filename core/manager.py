@@ -45,13 +45,13 @@ def get_task_status(task_id: str):
     return task_status_map.get(task_id, {"status": "not_found"})
 
 def propensy_score(fecha_inicio: str, fecha_fin: str, background_tasks: "BackgroundTasks"):
-    logger.info(f"[PID: {os.getpid()}] >Petición recibida para propensy_score para fechas {fecha_inicio} a {fecha_fin}.")
+    logger.info(f"Petición recibida para propensy_score para fechas {fecha_inicio} a {fecha_fin}.")
     request_key = makeKeyFromFechas(fecha_inicio, fecha_fin)
     
     # Si ya existe una tarea para este request, devolver el task_id existente.
     if request_key in request_to_task_map:
         existing_task_id = request_to_task_map[request_key]
-        logger.info(f"[PID: {os.getpid()}] >Tarea existente encontrada para {request_key}: {existing_task_id}. Devolviendo estado actual.")
+        logger.info(f"Tarea existente encontrada para {request_key}: {existing_task_id}. Devolviendo estado actual.")
         return get_task_status(existing_task_id)
 
     # Si no existe, crear una nueva tarea.
@@ -59,13 +59,13 @@ def propensy_score(fecha_inicio: str, fecha_fin: str, background_tasks: "Backgro
     request_to_task_map[request_key] = task_id
     task_status_map[task_id] = {"status": "starting", "details": "Iniciando cálculo de propensity score."}
     
-    logger.info(f"[PID: {os.getpid()}] >Iniciando nueva tarea en segundo plano para propensy_score. Task ID: {task_id}.")
+    logger.info(f"Iniciando nueva tarea en segundo plano para propensy_score. Task ID: {task_id}.")
     background_tasks.add_task(propensy_score_background, fecha_inicio, fecha_fin, task_id)
     
     return {"task_id": task_id, "status": "accepted"}
 
 def propensy_score_background(fecha_inicio: str, fecha_fin: str, task_id: str):
-    logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Iniciando ejecución en segundo plano de propensy_score para fechas {fecha_inicio} a {fecha_fin}.")
+    logger.info(f"Tarea {task_id}: Iniciando ejecución en segundo plano de propensy_score para fechas {fecha_inicio} a {fecha_fin}.")
     try:
         key = makeKeyFromFechas(fecha_inicio, fecha_fin)
         
@@ -73,21 +73,21 @@ def propensy_score_background(fecha_inicio: str, fecha_fin: str, task_id: str):
         
         if len(execute_scores_map) == 0 or execute_scores_map.get(key) is None:
             execute_scores_map[key] = "run"
-            logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Ejecutando managerPickle.ejecuta_masivo por primera vez para {key}.")
+            logger.info(f"Tarea {task_id}: Ejecutando managerPickle.ejecuta_masivo por primera vez para {key}.")
             managerPickle.ejecuta_masivo(fecha_inicio, fecha_fin)
         else:
-            logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Consultando y ejecutando managerPickle.consulta_ejecuta_masivo para {key}.")
+            logger.info(f"Tarea {task_id}: Consultando y ejecutando managerPickle.consulta_ejecuta_masivo para {key}.")
             managerPickle.consulta_ejecuta_masivo(fecha_inicio, fecha_fin)
 
         task_status_map[task_id] = {"status": "processing", "details": "Ejecutando procesos adicionales."}
-        logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Llamando a orquestar_calculos_adicionales.")
+        logger.info(f"Tarea {task_id}: Llamando a orquestar_calculos_adicionales.")
         orquestar_calculos_adicionales(fecha_fin, task_id)
 
         task_status_map[task_id] = {"status": "completed", "details": "Todos los procesos finalizaron correctamente."}
-        logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Ejecución en segundo plano de propensy_score finalizada correctamente.")
+        logger.info(f"Tarea {task_id}: Ejecución en segundo plano de propensy_score finalizada correctamente.")
 
     except Exception as e:
-        logger.error(f"[PID: {os.getpid()}] >Tarea {task_id}: Error durante el cálculo de score en segundo plano para la tarea {task_id}: {e}", exc_info=True)
+        logger.error(f"Tarea {task_id}: Error durante el cálculo de score en segundo plano para la tarea {task_id}: {e}", exc_info=True)
         task_status_map[task_id] = {"status": "error", "details": str(e)}
 
 def orquestar_calculos_adicionales(fecha_fin: str, task_id: str):
@@ -95,15 +95,15 @@ def orquestar_calculos_adicionales(fecha_fin: str, task_id: str):
     Ejecuta la secuencia de cálculos post-score: Umbrales, Anomalías y Semáforo, actualizando el estado de la tarea.
     """
     umbrales_logger = logging.getLogger('umbrales_logger') 
-    logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Inicia la orquestación de cálculos adicionales.")
+    logger.info(f"Tarea {task_id}: Inicia la orquestación de cálculos adicionales.")
     try:
         task_status_map[task_id] = {"status": "processing", "details": "Paso 1: Generando datos de umbrales..."}
         dias_umbral = 60
         entidad_umbral = "rut_medico"
         df_umbrales = generate_data_umbral(fecha_fin, dias_umbral, entidad_umbral)
-        umbrales_logger.info(f"[PID: {os.getpid()}] >{task_id} : Procesando umbral {fecha_fin}-{task_id} ")
+        umbrales_logger.info(f"{task_id} : Procesando umbral {fecha_fin}-{task_id} ")
         if not df_umbrales.empty:
-            umbrales_logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Se generaron datos de umbrales. Se procede con el cálculo de Umbrales y Anomalías.")
+            umbrales_logger.info(f"Tarea {task_id}: Se generaron datos de umbrales. Se procede con el cálculo de Umbrales y Anomalías.")
             
             task_status_map[task_id] = {"status": "processing", "details": "Paso 2: Guardando resultados de umbrales en la base de datos..."}
             process_umbral_and_save_db(df_umbrales, dias_umbral, entidad_umbral)
@@ -111,7 +111,7 @@ def orquestar_calculos_adicionales(fecha_fin: str, task_id: str):
             task_status_map[task_id] = {"status": "processing", "details": "Paso 3: Calculando anomalías..."}
             calcular_anomalias(df_umbrales)
         else:
-            umbrales_logger.warning(f"[PID: {os.getpid()}] >Tarea {task_id}: No se generaron datos de umbrales. Se omiten los pasos de guardado de Umbrales y cálculo de Anomalías.")
+            umbrales_logger.warning(f"Tarea {task_id}: No se generaron datos de umbrales. Se omiten los pasos de guardado de Umbrales y cálculo de Anomalías.")
             # Actualizamos el estado para que el usuario sepa que se omitieron pasos
             task_status_map[task_id] = {"status": "processing", "details": "Paso 3: Omitiendo Umbrales y Anomalías por falta de datos."}
 
@@ -120,10 +120,10 @@ def orquestar_calculos_adicionales(fecha_fin: str, task_id: str):
         fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
         procesar_semaforo(año=fecha_dt.year, mes=fecha_dt.month)
         
-        logger.info(f"[PID: {os.getpid()}] >Tarea {task_id}: Procesos adicionales finalizados correctamente.")
+        logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
 
     except Exception as e:
-        umbrales_logger.error(f"[PID: {os.getpid()}] >Error durante los procesos adicionales para la tarea {task_id}: {e}", exc_info=True)
+        umbrales_logger.error(f"Error durante los procesos adicionales para la tarea {task_id}: {e}", exc_info=True)
         raise e # Relanzamos la excepción para que sea capturada en el nivel superior.
 
 def masivo(fecha_inicio: str, fecha_fin: str):
@@ -176,7 +176,7 @@ def consulta_licencia_from_rest(where_query: ConsultaLicenciaRequest):
 
 def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_hash: str, status_queue: Queue) -> None:
 
-    print(f"[PID: {os.getpid()}] >DEBUG: Entrando a process_umbral_task (PID: {os.getpid()}).")
+    print(f"DEBUG: Entrando a process_umbral_task (PID: {os.getpid()}).")
     setup_loggers()
     print(f"DEBUG: setup_loggers() llamado en process_umbral_task (PID: {os.getpid()}).")
 
@@ -186,7 +186,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
     # reclamos_logger = logging.getLogger('reclamos_logger') # No se usa directamente aquí
 
     try:
-        umbrales_logger.info(f"[PID: {os.getpid()}] >hash {request_hash}: Extrayendo data.")
+        umbrales_logger.info(f"hash {request_hash}: Extrayendo data.")
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -198,7 +198,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
         )
         # Ejecutar consulta y procesar datos
         data_df = generate_data_umbral(fecha, dias, columna_entidad)
-        umbrales_logger.info(f"[PID: {os.getpid()}] >hash {request_hash}: procesando data.")
+        umbrales_logger.info(f"hash {request_hash}: procesando data.")
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -208,10 +208,10 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
                 status="process_data"
             )
         )
-        umbrales_logger.info(f"[PID: {os.getpid()}] >hash {request_hash}: guardando data.")
+        umbrales_logger.info(f"hash {request_hash}: guardando data.")
         process_umbral_and_save_db(data_df,dias,columna_entidad)  
 
-        anomalias_logger.info(f"[PID: {os.getpid()}] >hash {request_hash}: calculando anomalias.")
+        anomalias_logger.info(f"hash {request_hash}: calculando anomalias.")
         status_queue.put(
             manage_umbral_status(
                 request_hash=request_hash,
@@ -222,7 +222,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
             )
         )
         calcular_anomalias(data_df)
-        anomalias_logger.info(f"[PID: {os.getpid()}] >hash {request_hash}: guardando anomalias.")
+        anomalias_logger.info(f"hash {request_hash}: guardando anomalias.")
         # Registrar estado final
         status_queue.put(
             manage_umbral_status(
@@ -239,8 +239,8 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
         logger = logging.getLogger(__name__) # Logger general
         umbrales_logger = logging.getLogger('umbrales_logger') # Logger específico
         
-        logger.error(f"[PID: {os.getpid()}] >Error en el proceso de umbral (hash: {request_hash}): {e}", exc_info=True)
-        umbrales_logger.error(f"[PID: {os.getpid()}] >Error en el proceso de umbral (hash: {request_hash}): {e}", exc_info=True)
+        logger.error(f"Error en el proceso de umbral (hash: {request_hash}): {e}", exc_info=True)
+        umbrales_logger.error(f"Error en el proceso de umbral (hash: {request_hash}): {e}", exc_info=True)
 
         status_queue.put(
             manage_umbral_status(
@@ -254,7 +254,7 @@ def process_umbral_task(fecha: str, dias: int, columna_entidad: str, request_has
 
 def consulta_licencias_para_semaforo_from_rest(request: SemaforoRequest):
     fecha_inicio, fecha_fin = None, None
-    semaforo_logger.info(f"[PID: {os.getpid()}] >rango {request.anio}/{request.mes}: consulta licencias para semaforos data.")
+    semaforo_logger.info(f"rango {request.anio}/{request.mes}: consulta licencias para semaforos data.")
     if request.mes and request.anio:
         fecha_inicio = date(request.anio, request.mes, 1).isoformat()
         last_day = calendar.monthrange(request.anio, request.mes)[1]
@@ -272,6 +272,90 @@ def consulta_licencias_para_semaforo_from_rest(request: SemaforoRequest):
 
 def consulta_rest_semaforo(rango: str, rut_medico: str):
     semaforo_logger = logging.getLogger('semaforo_logger')    
-    semaforo_logger.info(f"[PID: {os.getpid()}] >Consulta semaforo rango[{rango}] - rut_medicio[{rut_medico}]")
+    semaforo_logger.info(f"Consulta semaforo rango[{rango}] - rut_medicio[{rut_medico}]")
     from_db =consulta_semaforo(rango, rut_medico)
     return from_db
+
+def run_umbral_process(fecha_inicio: str, fecha_fin: str, background_tasks: "BackgroundTasks"):
+    """
+    Inicia un proceso de cálculo de umbrales en segundo plano.
+    """
+    logger.info(f"Petición recibida para run_umbral_process para fechas {fecha_inicio} a {fecha_fin}.")
+    request_key = makeKeyFromFechas(fecha_inicio, fecha_fin)
+    
+    if request_key in request_to_task_map:
+        existing_task_id = request_to_task_map[request_key]
+        logger.info(f"Tarea existente encontrada para {request_key}: {existing_task_id}. Devolviendo estado actual.")
+        return get_task_status(existing_task_id)
+
+    task_id = str(uuid.uuid4())
+    request_to_task_map[request_key] = task_id
+    task_status_map[task_id] = {"status": "starting", "details": "Iniciando cálculo de umbrales."}
+    
+    logger.info(f"Iniciando nueva tarea en segundo plano para run_umbral_process. Task ID: {task_id}.")
+    background_tasks.add_task(run_umbral_background, fecha_inicio, fecha_fin, task_id)
+    
+    return {"task_id": task_id, "status": "accepted"}
+
+def run_umbral_background(fecha_inicio: str, fecha_fin: str, task_id: str):
+    logger.info(f"Tarea {task_id}: Iniciando ejecución en segundo plano de run_umbral_process.")
+    try:
+        task_status_map[task_id] = {"status": "processing", "details": "Generando datos de umbrales."}
+        dias_umbral = 60
+        entidad_umbral = "rut_medico"
+        df_umbrales = generate_data_umbral(fecha_fin, dias_umbral, entidad_umbral)
+
+        if not df_umbrales.empty:
+            task_status_map[task_id] = {"status": "processing", "details": "Guardando resultados de umbrales en la base de datos."}
+            process_umbral_and_save_db(df_umbrales, dias_umbral, entidad_umbral)
+            task_status_map[task_id] = {"status": "completed", "details": "Proceso de umbrales finalizado correctamente."}
+        else:
+            task_status_map[task_id] = {"status": "completed", "details": "No se generaron datos de umbrales."}
+        
+        logger.info(f"Tarea {task_id}: Ejecución en segundo plano de run_umbral_process finalizada.")
+
+    except Exception as e:
+        logger.error(f"Tarea {task_id}: Error durante el cálculo de umbrales: {e}", exc_info=True)
+        task_status_map[task_id] = {"status": "error", "details": str(e)}
+
+def run_anomalias_process(fecha_inicio: str, fecha_fin: str, background_tasks: "BackgroundTasks"):
+    """
+    Inicia un proceso de cálculo de anomalías en segundo plano.
+    """
+    logger.info(f"Petición recibida para run_anomalias_process para fechas {fecha_inicio} a {fecha_fin}.")
+    request_key = makeKeyFromFechas(fecha_inicio, fecha_fin)
+    
+    if request_key in request_to_task_map:
+        existing_task_id = request_to_task_map[request_key]
+        logger.info(f"Tarea existente encontrada para {request_key}: {existing_task_id}. Devolviendo estado actual.")
+        return get_task_status(existing_task_id)
+
+    task_id = str(uuid.uuid4())
+    request_to_task_map[request_key] = task_id
+    task_status_map[task_id] = {"status": "starting", "details": "Iniciando cálculo de anomalías."}
+    
+    logger.info(f"Iniciando nueva tarea en segundo plano para run_anomalias_process. Task ID: {task_id}.")
+    background_tasks.add_task(run_anomalias_background, fecha_inicio, fecha_fin, task_id)
+    
+    return {"task_id": task_id, "status": "accepted"}
+
+def run_anomalias_background(fecha_inicio: str, fecha_fin: str, task_id: str):
+    logger.info(f"Tarea {task_id}: Iniciando ejecución en segundo plano de run_anomalias_process.")
+    try:
+        task_status_map[task_id] = {"status": "processing", "details": "Generando datos para el cálculo de anomalías."}
+        dias_umbral = 60 # Por mientras
+        entidad_umbral = "rut_medico" # por mientras.. agragar despues a un request para ano.
+        df_data = generate_data_umbral(fecha_fin, dias_umbral, entidad_umbral)
+
+        if not df_data.empty:
+            task_status_map[task_id] = {"status": "processing", "details": "Calculando anomalías."}
+            calcular_anomalias(df_data)
+            task_status_map[task_id] = {"status": "completed", "details": "Proceso de anomalías finalizado correctamente."}
+        else:
+            task_status_map[task_id] = {"status": "completed", "details": "No se generaron datos para el cálculo de anomalías."}
+
+        logger.info(f"Tarea {task_id}: Ejecución en segundo plano de run_anomalias_process finalizada.")
+
+    except Exception as e:
+        logger.error(f"Tarea {task_id}: Error durante el cálculo de anomalías: {e}", exc_info=True)
+        task_status_map[task_id] = {"status": "error", "details": str(e)}

@@ -104,7 +104,7 @@ class AnomaliesModel:
         df_resultado = df.copy()
 
         if col_decision_function not in df_resultado.columns:
-            raise ValueError(f"[PID: {os.getpid()}] >Columna '{col_decision_function}' no encontrada en DataFrame")
+            raise ValueError(f"Columna '{col_decision_function}' no encontrada en DataFrame")
 
         valores = pd.to_numeric(df_resultado[col_decision_function], errors='coerce').fillna(0)
         negativos = valores[valores < 0]
@@ -168,21 +168,21 @@ class AnomaliesModel:
         return self.transform(df_seleccion, decision_col=decision_col, propensity_col=propensity_col)
 
 def exec_anomalias(df_seleccion: pd.DataFrame):
-    anomalias_logger.info(f"[PID: {os.getpid()}] >Inicia la ejecución del modelo IsolationForest con {len(df_seleccion)} registros.")
+    anomalias_logger.info(f"Inicia la ejecución del modelo IsolationForest con {len(df_seleccion)} registros.")
     sys.modules['__main__'].AnomaliesModel = AnomaliesModel
 
-    base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
+    base_path = os.path.dirname(os.path.abspath(__file__))
     try:
-        with open(f"[PID: {os.getpid()}] >{base_path}/modelo_anomalias.pkl", "rb") as f:
+        with open(f"{base_path }//modelo_anomalias.pkl", "rb") as f:
             modelo = pkl.load(f)
             df_resultados = modelo.fit_transform(df_seleccion)
-            anomalias_logger.info(f"[PID: {os.getpid()}] >Modelo IsolationForest ejecutado. Se devuelven {len(df_resultados)} registros con scores de anomalía.")
+            anomalias_logger.info(f"Modelo IsolationForest ejecutado. Se devuelven {len(df_resultados)} registros con scores de anomalía.")
             return df_resultados
     except FileNotFoundError:
-        anomalias_logger.error(f"[PID: {os.getpid()}] >No se encontró el archivo del modelo en la ruta: {base_path}/modelo_anomalias.pkl")
+        anomalias_logger.error(f"No se encontró el archivo del modelo en la ruta: {base_path}/modelo_anomalias.pkl")
         raise
     except Exception as e:
-        anomalias_logger.error(f"[PID: {os.getpid()}] >Ocurrió un error al ejecutar el modelo de anomalías: {e}", exc_info=True)
+        anomalias_logger.error(f"Ocurrió un error al ejecutar el modelo de anomalías: {e}", exc_info=True)
         raise
 
         
@@ -190,10 +190,10 @@ def exec_anomalias(df_seleccion: pd.DataFrame):
 if __name__ == "__main__":
     sys.modules['__main__'].AnomaliesModel = AnomaliesModel
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
-    with open(f"[PID: {os.getpid()}] >{base_path}/modelo_anomalias.pkl", "rb") as f:
+    with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:
         modelo = pkl.load(f)
 
-        df_seleccion = pd.read_csv(f"[PID: {os.getpid()}] >{base_path}/data.csv")
+        df_seleccion = pd.read_csv(f"{base_path}/data.csv")
         df_resultados = modelo.fit_transform(df_seleccion)
 
-        df_resultados.to_csv(f"[PID: {os.getpid()}] >{base_path}/resultados_anomalias.csv", index=False)
+        df_resultados.to_csv(f"{base_path}/resultados_anomalias.csv", index=False)

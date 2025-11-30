@@ -15,7 +15,9 @@ from core.manager import (
     process_umbral_task, 
     propensy_score,
     propensy_score_licencia,
-    get_task_status as get_score_task_status
+    get_task_status,
+    run_umbral_process,
+    run_anomalias_process
 )
 from typing import Optional
 import hashlib
@@ -42,13 +44,47 @@ def execute_score(request: MasivoRequest, background_tasks: BackgroundTasks):
         response = propensy_score(request.fecha_inicio, request.fecha_fin, background_tasks)
         return response
     except Exception as e:
-        logger.error(f"[PID: {os.getpid()}] >Error initiating score calculation: {str(e)}", exc_info=True)
+        logger.error(f"Error initiating score calculation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Error inesperado: {str(e)}")
 
 @router.get("/score/status/{task_id}")
 def get_score_status(task_id: str):
     """Consulta el estado de una tarea de cálculo de score."""
-    return get_score_task_status(task_id)
+    return get_task_status(task_id)
+
+@router.post("/umbrales")
+def execute_umbrales(request: MasivoRequest, background_tasks: BackgroundTasks):
+    """
+    Inicia un proceso de cálculo de umbrales en segundo plano.
+    """
+    try:
+        response = run_umbral_process(request.fecha_inicio, request.fecha_fin, background_tasks)
+        return response
+    except Exception as e:
+        logger.error(f"Error initiating umbral calculation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error inesperado: {str(e)}")
+
+@router.get("/umbrales/status/{task_id}")
+def get_umbrales_status(task_id: str):
+    """Consulta el estado de una tarea de cálculo de umbrales."""
+    return get_task_status(task_id)
+
+@router.post("/anomalias")
+def execute_anomalias(request: MasivoRequest, background_tasks: BackgroundTasks):
+    """
+    Inicia un proceso de cálculo de anomalías en segundo plano.
+    """
+    try:
+        response = run_anomalias_process(request.fecha_inicio, request.fecha_fin, background_tasks)
+        return response
+    except Exception as e:
+        logger.error(f"Error initiating anomalias calculation: {str(e)}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error inesperado: {str(e)}")
+
+@router.get("/anomalias/status/{task_id}")
+def get_anomalias_status(task_id: str):
+    """Consulta el estado de una tarea de cálculo de anomalías."""
+    return get_task_status(task_id)
     
 @router.post("/score/details")
 def query_score_details(request: MasivoRequest):
@@ -93,7 +129,7 @@ async def create_umbral(request: UmbralRequest):
         return get_umbral_status(request_hash)
 
     except Exception as e:
-        logger.error(f"[PID: {os.getpid()}] >Error initiating request: {str(e)}")
+        logger.error(f"Error initiating request: {str(e)}")
         return {"status": "error", "message": f"Error inesperado: {str(e)}"}
 
 
@@ -115,17 +151,17 @@ semaforo_logger = get_custom_logger('semaforo_logger', 'semaforo.log')
 
 @router.post("/semaforo")
 def procesar_semaforo_endpoint(request: SemaforoRequest):
-    semaforo_logger.info(f"[PID: {os.getpid()}] >Recibida petición para procesar semáforo: mes={request.mes}, anio={request.anio}")
+    semaforo_logger.info(f"Recibida petición para procesar semáforo: mes={request.mes}, anio={request.anio}")
     rango = f"{request.anio}-{request.mes:02d}"
     
     # Primero, intenta obtener un resultado pre-calculado (cache).
     resultado = consulta_semaforo(rango, request.rut_medico)
     if len(resultado) > 0:
-        semaforo_logger.info(f"[PID: {os.getpid()}] >Se encontraron {resultado} resultados pre-calculados para el rango '{rango}'. Se devuelven desde la base de datos.")
+        semaforo_logger.info(f"Se encontraron {resultado} resultados pre-calculados para el rango '{rango}'. Se devuelven desde la base de datos.")
         return resultado
 
     # Si no hay resultados, se inicia un nuevo cálculo en segundo plano.
-    semaforo_logger.info(f"[PID: {os.getpid()}] >No se encontraron resultados pre-calculados. Se inicia una nueva tarea de cálculo para el rango '{rango}'.")
+    semaforo_logger.info(f"No se encontraron resultados pre-calculados. Se inicia una nueva tarea de cálculo para el rango '{rango}'.")
     def semaforo_func(req_model):
         df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
         # La función 'procesar_semaforo' ya tiene sus propios logs de inicio y fin.
@@ -149,5 +185,5 @@ def query_reclamos(request: ReclamosRequest):
 
 @router.get("/semaforo/{rango_path}")
 def query_semaforo(rango_path : str):
-    semaforo_logger.info(f"[PID: {os.getpid()}] >Consulta semaforo en rest get rango[{rango_path}]")
+    semaforo_logger.info(f"Consulta semaforo en rest get rango[{rango_path}]")
     return consulta_rest_semaforo(rango=rango_path,rut_medico=None)

@@ -418,11 +418,12 @@ def count_licenses_by_empleador(df, window_days=30):
     return full_result
 
 def calcular_anomalias(df_licencias: pd.DataFrame):
-    anomalias_logger.info(f"[PID: {os.getpid()}] >Inicia el cálculo de anomalías para {len(df_licencias)} licencias.")
+    anomalias_logger = logging.getLogger('anomalias_logger')
+    anomalias_logger.info(f"Inicia el cálculo de anomalías para {len(df_licencias)} licencias.")
 
     # Filtros iniciales sugeridos
     df_licencias = df_licencias[df_licencias['dias_reposo'] <= 365]
-    df_licencias = df_licencias[~df_licencias['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
+    #df_licencias = df_licencias[~df_licencias['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
     df_licencias['fecha_emision'] = pd.to_datetime(df_licencias['fecha_emision'], errors='coerce')
     df_licencias = df_licencias.sort_values(by=['rut_medico', 'rut_trabajador', 'fecha_emision']).reset_index(drop=True)
 
@@ -606,6 +607,6 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
     # df_seleccion.to_csv('df_licencias_procesado.csv', index=False)
     anomalias_logger.info("Ingeniería de características finalizada. Ejecuta el modelo de anomalías.")
     df_licencias_exec = exec_anomalias(df_licencias)
-    anomalias_logger.info(f"[PID: {os.getpid()}] >Ejecución del modelo finalizada. Se enviarán {len(df_licencias_exec)} registros a la base de datos.")
+    anomalias_logger.info(f"Ejecución del modelo finalizada. Se enviarán {len(df_licencias_exec)} registros a la base de datos.")
     insert_anomalias(df_licencias_exec)
     anomalias_logger.info("Finaliza el cálculo de anomalías.")

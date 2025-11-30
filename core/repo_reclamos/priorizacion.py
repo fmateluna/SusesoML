@@ -135,7 +135,7 @@ class PriorizacionProcessor:
         pieces = []
         for m in meses:
             mdf = self.semaforoWatson(df, mes=m, anio=anio, show_results=None)
-            prefix = f"[PID: {os.getpid()}] >m{m}_"
+            prefix = f"m{m}_"
             mdf = mdf.add_prefix(prefix)
             # Corrige el rename para que coincida con el prefijo completo
             full_rut_col = f"{prefix}rut_medico"

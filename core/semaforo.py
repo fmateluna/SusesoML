@@ -91,7 +91,7 @@ class SemaforoWatson:
       missing = self.REQUIRED_COLUMNS - set(dataframe.columns)
       df = dataframe.copy()
       if missing:
-        raise ValueError(f"[PID: {os.getpid()}] >Faltan columnas requeridas: {sorted(missing)}")
+        raise ValueError(f"Faltan columnas requeridas: {sorted(missing)}")
 
       
       df["fecha_emision"] = pd.to_datetime(df["fecha_emision"], errors="coerce")
@@ -151,10 +151,10 @@ class SemaforoWatson:
 
       # Guardado en base de datos
       num_registros_a_guardar = len(semaforo_watson)
-      semaforo_logger.info(f"[PID: {os.getpid()}] >Inicia el guardado de {num_registros_a_guardar} registros de semáforo en la base de datos.")
+      semaforo_logger.info(f"Inicia el guardado de {num_registros_a_guardar} registros de semáforo en la base de datos.")
       for _, row in semaforo_watson.iterrows():
           guardar_semaforo(row)
-      semaforo_logger.info(f"[PID: {os.getpid()}] >Finaliza el guardado de registros de semáforo.")
+      semaforo_logger.info(f"Finaliza el guardado de registros de semáforo.")
 
 
       if show_results is not None:
@@ -202,12 +202,12 @@ def procesar_semaforo(
     Procesa un DataFrame con datos médicos y devuelve los resultados de SemaforoWatson para todas las filas.
     """
     parametros_str = f"mes={mes}, anio={anio}, sort_by='{sort_values_by}', umbral_corte={umbral_decorte}, rn_limite={rn_ln_mes}, umbral_anomalias={umbral_deanomalias}"
-    semaforo_logger.info(f"[PID: {os.getpid()}] >Inicia procesamiento de semáforo con {len(df_calculos)} registros. Parámetros: {parametros_str}.")
+    semaforo_logger.info(f"Inicia procesamiento de semáforo con {len(df_calculos)} registros. Parámetros: {parametros_str}.")
     
     df_calculos["fecha_emision"] = pd.to_datetime(df_calculos["fecha_emision"], errors="coerce")
     
     total_filas = len(df_calculos)
-    semaforo_logger.info(f"[PID: {os.getpid()}] >total lineas calculadas  {total_filas} registros. Parámetros: {parametros_str}.")
+    semaforo_logger.info(f"total lineas calculadas  {total_filas} registros. Parámetros: {parametros_str}.")
     sw = SemaforoWatson(
         sort_values_by=sort_values_by,
         umbral_decorte=umbral_decorte,
@@ -231,5 +231,5 @@ def procesar_semaforo(
     if anio is not None and mes is not None:
         resultado["rango"] = f"{anio}-{mes:02d}"
     
-    semaforo_logger.info(f"[PID: {os.getpid()}] >Finaliza procesamiento de semáforo. Se generaron {len(resultado)} resultados.")
+    semaforo_logger.info(f"Finaliza procesamiento de semáforo. Se generaron {len(resultado)} resultados.")
     return resultado

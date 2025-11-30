@@ -42,5 +42,5 @@ def setup_loggers():
         # Evitar que los logs se propaguen al logger raíz (consola)
         logger.propagate = False
 
-    print(f"[PID: {os.getpid()}] >Loggers configurados correctamente en el proceso {os.getpid()}.")
+    print(f"Loggers configurados correctamente en el proceso {os.getpid()}.")
 

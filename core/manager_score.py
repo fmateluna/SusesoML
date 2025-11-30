@@ -79,12 +79,12 @@ class ManagerPickle:
             pickle_path_file = Path(pickle_path)
             try:
                 if not pickle_path_file.exists():
-                    raise FileNotFoundError(f"[PID: {os.getpid()}] >El archivo {model_name} no se encuentra en {pickle_path}")
+                    raise FileNotFoundError(f"El archivo {model_name} no se encuentra en {pickle_path}")
                 with open(pickle_path, "rb") as modelo:
                     self.modelos_cargados[model_name] = pickle.load(modelo)
-                logger.info(f"[PID: {os.getpid()}] >Modelo {model_name} cargado exitosamente")
+                logger.info(f"Modelo {model_name} cargado exitosamente")
             except Exception as e:
-                logger.error(f"[PID: {os.getpid()}] >Error al cargar el modelo {model_name}: {str(e)}")
+                logger.error(f"Error al cargar el modelo {model_name}: {str(e)}")
                 raise
 
     def _generate_request_key(self, fecha_inicio: str, fecha_fin: str) -> str:
@@ -106,19 +106,19 @@ class ManagerPickle:
             modelo_cargado = self.modelos_cargados[pickle_name]
             resultados = modelo_cargado.predict_prob(data)
             resultados["folio"] = params_dict["folio"]
-            logger.info(f"[PID: {os.getpid()}] >Resultados para id_licencia {params_dict['id_licencia']}: {resultados[['id_licencia', 'dias_reposo','especialidad_profesional', 'cod_diagnostico_principal',score_name]].to_dict(orient='records')}")
+            logger.info(f"Resultados para id_licencia {params_dict['id_licencia']}: {resultados[['id_licencia', 'dias_reposo','especialidad_profesional', 'cod_diagnostico_principal',score_name]].to_dict(orient='records')}")
             return resultados
         except KeyError as e:
-            logger.error(f"[PID: {os.getpid()}] >Falta la clave {e} en parametros_licencia para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
+            logger.error(f"Falta la clave {e} en parametros_licencia para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
             return pd.DataFrame()
         except TypeError as e:
-            logger.error(f"[PID: {os.getpid()}] >Error en los parámetros de predict_prob: {e} para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
+            logger.error(f"Error en los parámetros de predict_prob: {e} para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
             return pd.DataFrame()
         except AttributeError as e:
-            logger.error(f"[PID: {os.getpid()}] >Error al usar el modelo: {e} para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
+            logger.error(f"Error al usar el modelo: {e} para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
             return pd.DataFrame()
         except Exception as e:
-            logger.error(f"[PID: {os.getpid()}] >Error inesperado: {e} para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
+            logger.error(f"Error inesperado: {e} para id_licencia {params_dict.get('id_licencia', 'desconocido')}")
             return pd.DataFrame()
 
     def consulta_ejecuta_masivo(self, fecha_inicio: str, fecha_fin: str) -> dict:
@@ -154,7 +154,7 @@ class ManagerPickle:
             datos_licencias = query_masivo(fecha_inicio, fecha_fin)
             # AÑADIR ESTA VALIDACIÓN
             if datos_licencias is None or datos_licencias.empty:
-                logger.warning(f"[PID: {os.getpid()}] >query_masivo no retornó datos o el DataFrame está vacío para el rango {fecha_inicio} - {fecha_fin}.")
+                logger.warning(f"query_masivo no retornó datos o el DataFrame está vacío para el rango {fecha_inicio} - {fecha_fin}.")
                 with result_map_lock:
                     result_map[request_key] = {
                         'status': 'completed_no_data',
@@ -165,7 +165,7 @@ class ManagerPickle:
             try:
                 asyncio.run(self.ini_ejecuta_masivo(datos_licencias, fecha_inicio, fecha_fin))
             except Exception as e:
-                logger.error(f"[PID: {os.getpid()}] >Error en run_background: {str(e)}")
+                logger.error(f"Error en run_background: {str(e)}")
                 with result_map_lock:
                     result_map[request_key] = {
                         'status': 'error',
@@ -191,7 +191,7 @@ class ManagerPickle:
 
         try:
             if not all(col in datos_licencias.columns for col in columnas):
-                raise ValueError(f"[PID: {os.getpid()}] >Faltan columnas: {set(columnas) - set(datos_licencias.columns)}")
+                raise ValueError(f"Faltan columnas: {set(columnas) - set(datos_licencias.columns)}")
             
             count_rn_exe = {}
             current_state = {}
@@ -208,7 +208,7 @@ class ManagerPickle:
                                        
                         # Guardar en la base de datos cada block_size cálculos
                         if len(batch_results) >= block_size:
-                            logger.info(f"[PID: {os.getpid()}] >Guardando bloque de {len(batch_results)} resultados")
+                            logger.info(f"Guardando bloque de {len(batch_results)} resultados")
                             for batch_result, batch_score_name, batch_rn in batch_results:
                                 update_propensity_score_licencias(batch_result, batch_score_name, batch_rn)
                             batch_results = []  # Limpiar el lote
@@ -224,19 +224,19 @@ class ManagerPickle:
                         
                         
                     except Exception as e:
-                        logger.error(f"[PID: {os.getpid()}] >Error en registro {index}, modelo {model_name}: {str(e)}")
+                        logger.error(f"Error en registro {index}, modelo {model_name}: {str(e)}")
 
 
             # Guardar cualquier resultado restante
             if batch_results:
-                logger.info(f"[PID: {os.getpid()}] >Guardando bloque final de {len(batch_results)} resultados")
+                logger.info(f"Guardando bloque final de {len(batch_results)} resultados")
                 for batch_result, batch_score_name, batch_rn in batch_results:
                     update_propensity_score_licencias(batch_result, batch_score_name, batch_rn)
 
             with result_map_lock:
                 result_map[request_key]['status']='completed'
         except Exception as e:
-            logger.error(f"[PID: {os.getpid()}] >Error en ini_ejecuta_masivo: {str(e)}")
+            logger.error(f"Error en ini_ejecuta_masivo: {str(e)}")
             with result_map_lock:
                 result_map[request_key]['status']='error'
                 result_map[request_key]['reason']=str(e)

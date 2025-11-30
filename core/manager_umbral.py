@@ -20,9 +20,11 @@ def process_umbral_data(df, entity_col='rut_medico',dias=60):
         pd.DataFrame: DataFrame procesado con columnas adicionales.
     """
     try:
+        if df.empty:
+            return df
         # Aplicar filtros iniciales
         df = df[df['dias_reposo'] <= 365]
-        df = df[~df['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
+        # df = df[~df['cod_diagnostico_principal'].isin(['U07.1', 'U07.2'])]
         df['fecha_emision'] = pd.to_datetime(df['fecha_emision'], errors='coerce')
         df = df.sort_values(by=[entity_col, 'rut_trabajador', 'fecha_emision']).reset_index(drop=True)
 
@@ -40,7 +42,7 @@ def process_umbral_data(df, entity_col='rut_medico',dias=60):
         return df
 
     except Exception as e:
-        logger.error(f"[PID: {os.getpid()}] >Error procesando datos de umbral: {str(e)}")
+        logger.error(f"Error procesando datos de umbral: {str(e)}")
         raise
 
 

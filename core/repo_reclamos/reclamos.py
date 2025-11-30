@@ -105,7 +105,7 @@ def build_priorizacion_cfg(cfg: Dict[str, Any], anio: int, mes: int) -> tuple[Se
 def procesa_reclamos(request: ReclamosRequest) :
     periodo_str = f"[PERIODO: {request.anio}-{request.mes:02d}]"
     rut_medico_str = f"para el rut_medico: {request.rut_medico}" if request.rut_medico else "para todos los médicos"
-    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Inicia procesamiento de reclamos para el período: {request.anio}-{request.mes:02d} {rut_medico_str}.")
+    reclamos_logger.info(f"{periodo_str} Inicia procesamiento de reclamos para el período: {request.anio}-{request.mes:02d} {rut_medico_str}.")
 
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
 
@@ -120,7 +120,7 @@ def procesa_reclamos(request: ReclamosRequest) :
     reclamos_logger.info(f"{periodo_str} Inicia la carga de datos desde la base de datos.")
     adm = AdmisibilidadProcessor(adm_cfg)
     df, denuncias, relatos, detalle, lme = adm.load_all()
-    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Carga de datos finalizada. Registros cargados: df_semaforo={len(df)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
+    reclamos_logger.info(f"{periodo_str} Carga de datos finalizada. Registros cargados: df_semaforo={len(df)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
 
     # ---------- Base df_to_semaforo post-processing from notebook ----------
     for col in ["propensity_score_rn", "propensity_score_umbrales", "propensity_score_iforest"]:
@@ -154,10 +154,10 @@ def procesa_reclamos(request: ReclamosRequest) :
     reclamos_logger.info(f"{periodo_str} Inicia la etapa de priorización.")
     pr = PriorizacionProcessor(smf_cfg, prio_cfg)
     denuncias_semaforo = pr.run_prioritization(df, denuncias_previas_relato)
-    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Priorización finalizada. Se generaron {len(denuncias_semaforo)} resultados.")
+    reclamos_logger.info(f"{periodo_str} Priorización finalizada. Se generaron {len(denuncias_semaforo)} resultados.")
 
     # ---------- Output ----------
     # df_prepared = prepare_for_excel_json(denuncias_semaforo)
     
-    reclamos_logger.info(f"{periodo_str} [PID: {os.getpid()}] >Finaliza procesamiento de reclamos para el período: {request.anio}-{request.mes:02d}. Se devuelven {len(denuncias_semaforo)} registros.")
+    reclamos_logger.info(f"{periodo_str} Finaliza procesamiento de reclamos para el período: {request.anio}-{request.mes:02d}. Se devuelven {len(denuncias_semaforo)} registros.")
     return denuncias_semaforo.to_dict(orient='records')

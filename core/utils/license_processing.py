@@ -15,28 +15,33 @@ def count_licenses_by_entity(df, entity_col='rut_medico', window_days=30):
         pd.Series: Serie con el mismo índice que el DataFrame original, donde cada valor indica la cantidad de licencias
         emitidas por la entidad correspondiente en los window_days previos a la fecha de emisión de cada licencia.
     """
-    df = df[[entity_col, 'fecha_emision']].copy()
-    df['fecha_emision'] = pd.to_datetime(df['fecha_emision'])
-    df = df.sort_values([entity_col, 'fecha_emision']).reset_index()
+    df_sorted = df.sort_values(by=[entity_col, 'fecha_emision'])
+    fecha = df_sorted['fecha_emision'].values
+    entity = df_sorted[entity_col].values
+    index = df_sorted.index.values
 
-    entity = df[entity_col].values
-    fecha = df['fecha_emision'].values.astype('datetime64[D]').astype(np.int64)
-    orig_idx = df['index'].values
+    result = np.zeros(len(df_sorted), dtype=int)
+    pos = 0
 
-    changes = np.concatenate([[True], entity[1:] != entity[:-1]])
-    starts = np.where(changes)[0]
-    ends = np.concatenate([starts[1:], [len(df)]])
+    while pos < len(df_sorted):
+        # Encuentra el bloque actual
+        curr_entity = entity[pos]
+        start = pos
+        while pos < len(df_sorted) and entity[pos] == curr_entity:
+            pos += 1
+        end = pos
 
-    result = np.zeros(len(df), dtype=np.int32)
+        fechas_entidad = fecha[start:end]
+        dias = (fechas_entidad - fechas_entidad[0]) / np.timedelta64(1, 'D')
+        dias = dias.astype(np.int32)
 
-    for s, e in zip(starts, ends):
-        block = fecha[s:e]
-        rel_days = block - block[0]
-        left = np.searchsorted(rel_days, rel_days - window_days, side='left')
-        result[s:e] = np.arange(e - s) - left
+        # Busca inicio de la ventana para cada elemento usando searchsorted
+        left_idxs = np.searchsorted(dias, dias - window_days, side='left')
+        counts = np.arange(len(dias)) - left_idxs
 
-    return pd.Series(result, index=orig_idx).reindex(df.index)
+        result[start:end] = counts
 
+    return pd.Series(result, index=df_sorted.index).reindex(df.index)
 
 def count_licenses_by_otorgamiento(df, entity_col='rut_medico', window_days=30):
     """
@@ -57,45 +62,36 @@ def count_licenses_by_otorgamiento(df, entity_col='rut_medico', window_days=30):
     """
     df = df.copy()
     df['fecha_emision'] = pd.to_datetime(df['fecha_emision'])
-    is_remota = df['marca_otorgamiento'].fillna('NO_REMOTA') == 'REMOTA'
-    orig_idx = df.index
+    df['marca_otorgamiento'] = df['marca_otorgamiento'].fillna('NO_REMOTA')
 
-    df = df.sort_values([entity_col, 'fecha_emision']).reset_index(drop=True)
-    entity = df[entity_col].values
-    fecha = df['fecha_emision'].values.astype('datetime64[D]').astype(np.int64)
+    # Guardar índice original
+    original_index = df.index
 
-    changes = np.concatenate([[True], entity[1:] != entity[:-1]])
-    starts = np.where(changes)[0]
-    ends = np.concatenate([starts[1:], [len(df)]])
+    # Ordenar para el cálculo
+    df_sorted = df.sort_values(by=[entity_col, 'fecha_emision'])
+    df_sorted['dias'] = (df_sorted['fecha_emision'] - df_sorted['fecha_emision'].min()).dt.days
 
-    n_remotas = np.zeros(len(df), dtype=np.int32)
-    n_presenciales = np.zeros(len(df), dtype=np.int32)
+    # Series para almacenar los resultados manteniendo el índice original
+    n_remotas = pd.Series(0, index=df_sorted.index, dtype=int)
+    n_presenciales = pd.Series(0, index=df_sorted.index, dtype=int)
 
-    for s, e in zip(starts, ends):
-        block_dates = fecha[s:e]
-        block_remota = is_remota.iloc[s:e].values
+    for entity_value, group in df_sorted.groupby(entity_col):
+        dias = group['dias'].values
+        otorgamientos = group['marca_otorgamiento'].values
 
-        rel_days = block_dates - block_dates[0]
-        window_limit = rel_days - window_days
+        for i in range(len(group)):
+            start_date = dias[i] - window_days
+            mask = (dias >= start_date) & (dias < dias[i])
+            idx = group.index[i]
 
-        left_all = np.searchsorted(block_dates, block_dates - np.timedelta64(window_days, 'D'), side='left')
+            n_remotas.loc[idx] = np.sum(otorgamientos[mask] == 'REMOTA')
+            n_presenciales.loc[idx] = np.sum(otorgamientos[mask] != 'REMOTA')
 
-        cum_remota = np.cumsum(block_remota)
-        cum_total = np.arange(1, e-s+1)
+    # Reindexar al DataFrame original
+    df[f'n_remotas_{window_days}D'] = n_remotas.reindex(original_index)
+    df[f'n_presenciales_{window_days}D'] = n_presenciales.reindex(original_index)
 
-        prev_remota = np.where(window_limit >= 0,
-                               cum_remota[np.searchsorted(rel_days, window_limit, side='left') - 1],
-                               0)
-        prev_remota = np.maximum(0, prev_remota)
-
-        n_remotas[s:e] = cum_remota - prev_remota
-        n_presenciales[s:e] = (cum_total - left_all) - n_remotas[s:e]
-
-    df = df.set_index(orig_idx)
-    df[f'n_remotas_{window_days}D'] = n_remotas
-    df[f'n_presenciales_{window_days}D'] = n_presenciales
     return df
-
 
 def count_licenses_by_diagnosis(df, window_days=30, cods_list=None, entity_col='rut_medico'):
     """
@@ -112,46 +108,45 @@ def count_licenses_by_diagnosis(df, window_days=30, cods_list=None, entity_col='
         pd.DataFrame: Con columnas adicionales de frecuencia para cada letra de diagnóstico, nombradas con la entidad.
     """
     df = df.copy()
+    df['diagn_letter'] = df['cod_diagnostico_principal'].str[0]
     df['fecha_emision'] = pd.to_datetime(df['fecha_emision'])
-    df['diagn_letter'] = df['cod_diagnostico_principal'].astype(str).str[0].fillna('')
+    original_index = df.index
 
     if cods_list is None:
-        cods_list = sorted([c for c in df['diagn_letter'].unique() if c.isalpha()])
+        cods_list = df['diagn_letter'].dropna().unique()
 
-    orig_idx = df.index
-    entidad_nombre = entity_col.split('_')[-1]
+    entidad_nombre = entity_col.split('_')[-1]  # Ejemplo: 'rut_medico' -> 'medico'
 
-    for letra in cods_list:
-        df[f'frecuencia_{letra}_{window_days}D_{entidad_nombre}'] = 0
+    # Inicializar Series para cada letra, con índice original
+    results = {
+        f'frecuencia_{letra}_{window_days}D_{entidad_nombre}': pd.Series(0, index=original_index)
+        for letra in cods_list
+    }
 
-    df = df.sort_values([entity_col, 'fecha_emision'])
-
-    entity = df[entity_col].values
-    fecha = df['fecha_emision'].values.astype('datetime64[D]')
-    letras = df['diagn_letter'].values
-
-    changes = np.concatenate([[True], entity[1:] != entity[:-1]])
-    starts = np.where(changes)[0]
-    ends = np.concatenate([starts[1:], [len(df)]])
-
-    col_map = {letra: f'frecuencia_{letra}_{window_days}D_{entidad_nombre}' for letra in cods_list}
-    result_arrays = {letra: df[col_map[letra]].values for letra in cods_list}
-
-    for s, e in zip(starts, ends):
-        block_fechas = fecha[s:e]
-        block_letras = letras[s:e]
+    for entidad, grupo in df.groupby(entity_col):
+        grupo = grupo.sort_values('fecha_emision')
+        fechas = grupo['fecha_emision'].values
+        letras = grupo['diagn_letter'].values
+        idxs = grupo.index
 
         for letra in cods_list:
-            mask = block_letras == letra
-            if not mask.any():
+            mask = letras == letra
+            fechas_cod = fechas[mask]
+
+            if len(fechas_cod) == 0:
                 continue
-            fechas_cod = block_fechas[mask]
-            counts = np.searchsorted(fechas_cod, block_fechas, side='left') - \
-                     np.searchsorted(fechas_cod, block_fechas - np.timedelta64(window_days, 'D'), side='right')
-            result_arrays[letra][s:e] = counts
 
-    for letra, arr in result_arrays.items():
-        df[col_map[letra]] = arr
+            result = (
+                np.searchsorted(fechas_cod, fechas, side='left') -
+                np.searchsorted(fechas_cod, fechas - np.timedelta64(window_days, 'D'), side='right')
+            )
 
-    df = df.drop(columns=['diagn_letter']).loc[orig_idx]
+            col_name = f'frecuencia_{letra}_{window_days}D_{entidad_nombre}'
+            results[col_name].loc[idxs] = result
+
+    # Agregar resultados al DataFrame original
+    for col_name, serie in results.items():
+        df[col_name] = serie.reindex(df.index)
+
+    df.drop(columns=['diagn_letter'], inplace=True)
     return df
