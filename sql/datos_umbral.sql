@@ -22,8 +22,9 @@ LEFT JOIN ml.empresa e
 LEFT JOIN ml.umbrales u
     ON u.id_lic = l.id_lic
 WHERE 
-    l.fecha_emision BETWEEN 
-        DATE_TRUNC('day', CAST(:fecha_inicio AS TIMESTAMP)) - INTERVAL ':windows_days days' 
-        AND DATE_TRUNC('day', CAST(:fecha_inicio AS TIMESTAMP)) + INTERVAL '1 day' - INTERVAL '1 second'
-    AND u.id_lic IS NULL
+    l.fecha_emision BETWEEN
+        DATE_TRUNC('day', CAST(:fecha_inicio AS TIMESTAMP)) - INTERVAL ':windows_days days'
+        AND DATE_TRUNC('day', CAST(:fecha_fin AS TIMESTAMP)) + INTERVAL '1 day' - INTERVAL '1 second'
+    AND u.id_lic IS NULL;
+
     --and l.cod_diagnostico_principal in ('U07.1', 'U07.2', 'A02.1','A02.8','A02.9');

@@ -453,6 +453,11 @@ def calcular_anomalias(df_licencias: pd.DataFrame):
     # Calidad del trabajador al que se le emite la licencia médica (dependiente o independiente)
     df_licencias = pd.get_dummies(df_licencias, columns=['calidad_trabajador'], prefix='calidad', dtype=int)
 
+    df_licencias = df_licencias.rename(columns={"calidad_Trabajador dependiente sector privado": "calidad_trabajador_dependiente_privado", 
+                                 "calidad_Trabajador Independiente": "calidad_trabajador_independiente",  
+                                 "calidad_Trabajador sector público afecto a la ley nº 18.834.": "calidad_trabajador_publico_afecto", 
+                                 "calidad_Trabajador sector público no afecto a la ley nº 18.834.":"calidad_trabajador_publico_no_afecto"})
+
     # Calculamos la recencia del trabajador asociado a la licencia médica.
     df_licencias = df_licencias.sort_values(by=['rut_trabajador', 'fecha_emision'])
     df_licencias['recencia_trabajador'] = df_licencias.groupby('rut_trabajador')['fecha_emision'].diff().dt.total_seconds().fillna(2628002) / 60 # 1 mes en minutos

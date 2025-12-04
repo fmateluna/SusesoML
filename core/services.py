@@ -224,14 +224,16 @@ def query_score_licencia(fecha_inicio: str, fecha_fin: str) -> List[dict]:
         logger.error(f"Error ejecutando query_score_licencia: {str(e)}")
         raise
 
-def query_data_umbral(fecha: str, dias: int = 60, columna_entidad: str = "rut_medico") -> List[List]:
+def query_data_umbral(fecha_inicio: str, fecha_fin: str, dias: int = 60, columna_entidad: str = "rut_medico") -> List[List]:
     """Ejecuta consulta de umbral y retorna resultados con tiempo de ejecución."""
     try:
-        fecha_date = datetime.strptime(fecha, "%Y-%m-%d").date()
+        fecha_date_ini = datetime.strptime(fecha_inicio, "%Y-%m-%d").date()
+        fecha_date_fin = datetime.strptime(fecha_fin, "%Y-%m-%d").date()
     except ValueError:
         raise ValueError("El formato de la fecha debe ser YYYY-MM-DD")
     query_params = {
-        "fecha_inicio": fecha_date,
+        "fecha_inicio": fecha_date_ini,
+        "fecha_fin": fecha_date_fin,
         "windows_days": dias,
     }
     result = execute_query("./sql/datos_umbral.sql", query_params)
@@ -417,57 +419,98 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
 def insert_anomalias(session, results: pd.DataFrame) -> None:
     """
     Inserta los datos procesados de anomalías en la tabla ml.anomalias.
-    Usa INSERT con ON CONFLICT DO NOTHING para manejar duplicados (basado en id_lic).
+    Usa INSERT con ON CONFLICT DO UPDATE para manejar duplicados (basado en id_lic).
+    Se inserta fila por fila para evitar caídas de conexión con batches grandes.
     """
     anomalias_logger = logging.getLogger('anomalias_logger')
+    
     if results.empty:
         anomalias_logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
         return
+    
+    # Renombrar 'id_licencia' si existe
     if 'id_licencia' in results.columns:
         results = results.rename(columns={'id_licencia': 'id_lic'})
-    expected_columns = [
+    
+    expected_columns_original = [
         "id_lic", "rut_medico", "rut_trabajador", "rut_empleador", "dias_reposo",
         "edad_trabajador", "hora_emision", "dia_codificado",
         "calidad_trabajador_independiente", "calidad_trabajador_dependiente_privado",
         "calidad_trabajador_publico_afecto", "calidad_trabajador_publico_no_afecto",
-        "recencia_trabajador", "frecuencia_trabajador_60d", "frecuencia_trabajador_40d",
-        "frecuencia_trabajador_20d", "reposo_trabajador_60d", "reposo_trabajador_40d",
-        "reposo_trabajador_20d", "n_medicos_distintos_xtrabajador_60d",
-        "n_empleadores_distintos_xtrabajador_60d", "desviacion_reposo_trabajador_60d",
-        "recencia_medico", "frecuencia_medico_30d", "frecuencia_medico_15d",
-        "frecuencia_medico_7d", "reposo_medico_30d", "reposo_medico_15d",
-        "reposo_medico_7d", "licencias_20_min", "licencias_40_min", "licencias_60_min",
-        "max_licencias_dia_30d", "frecuencia_j_30d_medico", "frecuencia_f_30d_medico",
-        "frecuencia_m_30d_medico", "max_rest_days_30d", "diferencia_dias",
-        "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60d",
-        "n_empleadores_distintos_xmedico_60d", "hhi_empleadores_por_medico_60d",
-        "n_remotas_30d", "n_presenciales_30d", "recencia_empleador",
-        "frecuencia_empleador_60d", "frecuencia_empleador_40d", "frecuencia_empleador_20d",
-        "reposo_empleador_60d", "reposo_empleador_40d", "reposo_empleador_20d",
-        "n_trabajadores_distintos_xempleador_60d", "n_medicos_distintos_xempleador_60d",
-        "frecuencia_j_30d_empleador", "frecuencia_f_30d_empleador", "frecuencia_m_30d_empleador",
+        "recencia_trabajador", "frecuencia_trabajador_60D", "frecuencia_trabajador_40D",
+        "frecuencia_trabajador_20D", "reposo_trabajador_60D", "reposo_trabajador_40D",
+        "reposo_trabajador_20D", "n_medicos_distintos_xtrabajador_60D",
+        "n_empleadores_distintos_xtrabajador_60D", "desviacion_reposo_trabajador_60D",
+        "recencia_medico", "frecuencia_medico_30D", "frecuencia_medico_15D",
+        "frecuencia_medico_7D", "reposo_medico_30D", "reposo_medico_15D",
+        "reposo_medico_7D", "licencias_20_min", "licencias_40_min", "licencias_60_min",
+        "max_licencias_dia_30D", "frecuencia_j_30D_medico", "frecuencia_f_30D_medico",
+        "frecuencia_m_30D_medico", "max_rest_days_30D", "diferencia_dias",
+        "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60D",
+        "n_empleadores_distintos_xmedico_60D", "hhi_empleadores_por_medico_60D",
+        "n_remotas_30D", "n_presenciales_30D", "recencia_empleador",
+        "frecuencia_empleador_60D", "frecuencia_empleador_40D", "frecuencia_empleador_20D",
+        "reposo_empleador_60D", "reposo_empleador_40D", "reposo_empleador_20D",
+        "n_trabajadores_distintos_xempleador_60D", "n_medicos_distintos_xempleador_60D",
+        "frecuencia_j_30D_empleador", "frecuencia_f_30D_empleador", "frecuencia_m_30D_empleador",
         "historial_trabajador_medico", "historial_empleador_medico", "ponderado_medico_trabajador",
         "anomaly_score", "propensity_score_iforest"
     ]
-    for col in expected_columns:
+    
+    for col in expected_columns_original:
         if col not in results.columns:
             results[col] = None
+    
+    rename_dict = {}
+    for col in results.columns:
+        # Convertir a lower, y si termina con 'D' (mayúscula), cambiar a 'd'
+        new_col = col.lower()
+        if new_col.endswith('d'):  
+            pass  
+        else:
+            new_col = new_col.replace('D', 'd')  # Reemplaza 'D' por 'd' (ya que lower lo hace 'd' minúscula)
+        rename_dict[col] = new_col
+    
+    results = results.rename(columns=rename_dict)
+    
+    expected_columns = list(results.columns)
+    
+    update_columns = [col for col in expected_columns if col != "id_lic"]
+    set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
+    
     upsert_query = f"""
-    INSERT INTO ml.anomalias (
-        {", ".join(expected_columns)}
-    ) VALUES (
-        {", ".join([f":{col}" for col in expected_columns])}
-    )
-    ON CONFLICT (id_lic) DO NOTHING
+        INSERT INTO ml.anomalias ({", ".join(expected_columns)})
+        VALUES ({", ".join(f":{col}" for col in expected_columns)})
+        ON CONFLICT (id_lic) DO UPDATE
+        SET {set_clause}
     """
-    params_list = [
-        {col: row.get(col, None) for col in expected_columns}
-        for _, row in results.iterrows()
-    ]
-    session.execute(text(upsert_query), params_list)
-    session.commit()
-    anomalias_logger.info(f"Insertados/actualizados {len(params_list)} registros en ml.anomalias")
-
+    
+    insertados = 0
+    fallidos = 0
+    for _, row in results.iterrows():
+        params = {col: row.get(col, None) for col in expected_columns}
+        try:
+            session.execute(text(upsert_query), params)
+            insertados += 1
+            anomalias_logger.debug(f"Guardando id_lic: {row.get('id_lic')} en anomalias")
+            if insertados % 100 == 0:
+                session.commit()
+                anomalias_logger.debug(f"Commit intermedio: {insertados} registros procesados")
+        except Exception as e:
+            fallidos += 1
+            anomalias_logger.error(f"Error insertando id_lic {row.get('id_lic')}: {e}")
+            if "server closed the connection" in str(e) or "Connection refused" in str(e):
+                anomalias_logger.warning("Conexión perdida, reintentando sesión...")
+                session.rollback()
+            continue
+    
+    try:
+        session.commit()
+    except Exception as e:
+        anomalias_logger.error(f"Error en commit final: {e}")
+        session.rollback()
+    
+    anomalias_logger.info(f"Insertados: {insertados} | Fallidos: {fallidos} | Total intentados: {len(results)} en ml.anomalias")
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
     Ejecuta la consulta de licencias con filtros opcionales, incluyendo columnas de ml.anomalias no redundantes.

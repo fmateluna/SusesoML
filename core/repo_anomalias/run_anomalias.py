@@ -168,6 +168,8 @@ class AnomaliesModel:
         return self.transform(df_seleccion, decision_col=decision_col, propensity_col=propensity_col)
 
 def exec_anomalias(df_seleccion: pd.DataFrame):
+    anomalias_logger = logging.getLogger('anomalias_logger')
+
     anomalias_logger.info(f"Inicia la ejecución del modelo IsolationForest con {len(df_seleccion)} registros.")
     sys.modules['__main__'].AnomaliesModel = AnomaliesModel
 
@@ -188,6 +190,7 @@ def exec_anomalias(df_seleccion: pd.DataFrame):
         
 
 if __name__ == "__main__":
+    anomalias_logger = logging.getLogger('anomalias_logger')
     sys.modules['__main__'].AnomaliesModel = AnomaliesModel
     base_path = os.path.dirname(os.path.abspath(__file__)) + '/' 
     with open(f"{base_path}/modelo_anomalias.pkl", "rb") as f:
