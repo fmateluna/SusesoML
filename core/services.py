@@ -416,7 +416,7 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
     umbrales_logger.info(f" Inserción completada: {registros_insertados} nuevos registros insertados de {total_registros} procesados")
 
 @db_session
-def insert_anomalias_upsert(results: pd.DataFrame) -> None:
+def insert_anomalias(results: pd.DataFrame) -> None:
     """
     UPSERT real (INSERT o UPDATE) en ml.anomalias por id_lic
     Muestra en log cada id_lic procesado
