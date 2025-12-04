@@ -457,26 +457,11 @@ def insert_anomalias(session, results: pd.DataFrame) -> None:
         "anomaly_score", "propensity_score_iforest"
     ]
     
-    # Agregar columnas faltantes, copiando valores desde columnas equivalentes ignorando mayúsculas
-    lower_map = {col.lower(): col for col in results.columns}
-
-    for col in expected_columns_original:
-        col_lower = col.lower()
-
-        if col_lower in lower_map:
-            # Existe una versión equivalente → copiar valores
-            real_col = lower_map[col_lower]
-            results[col_lower] = results[real_col]
-        else:
-            # No existe ninguna versión → asignar None
-            results[col_lower] = None
 
     results.columns = results.columns.str.lower()
     
-    # Ahora expected_columns también debe estar en minúsculas
     expected_columns = [col.lower() for col in expected_columns_original]
     
-    # Crear el upsert query
     update_columns = [col for col in expected_columns if col != "id_lic"]
     set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
     
