@@ -416,88 +416,100 @@ def insert_umbrales(session, results: pd.DataFrame, fecha: str, dias: int, colum
     umbrales_logger.info(f" Inserción completada: {registros_insertados} nuevos registros insertados de {total_registros} procesados")
 
 @db_session
-def insert_anomalias(session, results: pd.DataFrame) -> None:
+def insert_anomalias_upsert(results: pd.DataFrame) -> None:
     """
-    Inserta los datos procesados de anomalías en la tabla ml.anomalias.
-    Usa INSERT con ON CONFLICT DO UPDATE para manejar duplicados (basado en id_lic).
-    Se inserta fila por fila para evitar caídas de conexión con batches grandes.
+    UPSERT real (INSERT o UPDATE) en ml.anomalias por id_lic
+    Muestra en log cada id_lic procesado
     """
+    results.columns = results.columns.str.lower()
+
     anomalias_logger = logging.getLogger('anomalias_logger')
-    
     if results.empty:
-        anomalias_logger.warning("DataFrame vacío, no se insertan datos en ml.anomalias")
+        anomalias_logger.warning("DataFrame vacío, no se realiza upsert en ml.anomalias")
         return
-    
-    # Renombrar 'id_licencia' si existe
+
     if 'id_licencia' in results.columns:
         results = results.rename(columns={'id_licencia': 'id_lic'})
-    
-    expected_columns_original = [
-        "id_lic", "rut_medico", "rut_trabajador", "rut_empleador", "dias_reposo",
+
+    session = SessionLocal()
+
+    columnas = [
+        "rut_medico", "rut_trabajador", "rut_empleador", "dias_reposo",
         "edad_trabajador", "hora_emision", "dia_codificado",
         "calidad_trabajador_independiente", "calidad_trabajador_dependiente_privado",
         "calidad_trabajador_publico_afecto", "calidad_trabajador_publico_no_afecto",
-        "recencia_trabajador", "frecuencia_trabajador_60D", "frecuencia_trabajador_40D",
-        "frecuencia_trabajador_20D", "reposo_trabajador_60D", "reposo_trabajador_40D",
-        "reposo_trabajador_20D", "n_medicos_distintos_xtrabajador_60D",
-        "n_empleadores_distintos_xtrabajador_60D", "desviacion_reposo_trabajador_60D",
-        "recencia_medico", "frecuencia_medico_30D", "frecuencia_medico_15D",
-        "frecuencia_medico_7D", "reposo_medico_30D", "reposo_medico_15D",
-        "reposo_medico_7D", "licencias_20_min", "licencias_40_min", "licencias_60_min",
-        "max_licencias_dia_30D", "frecuencia_j_30D_medico", "frecuencia_f_30D_medico",
-        "frecuencia_m_30D_medico", "max_rest_days_30D", "diferencia_dias",
-        "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60D",
-        "n_empleadores_distintos_xmedico_60D", "hhi_empleadores_por_medico_60D",
-        "n_remotas_30D", "n_presenciales_30D", "recencia_empleador",
-        "frecuencia_empleador_60D", "frecuencia_empleador_40D", "frecuencia_empleador_20D",
-        "reposo_empleador_60D", "reposo_empleador_40D", "reposo_empleador_20D",
-        "n_trabajadores_distintos_xempleador_60D", "n_medicos_distintos_xempleador_60D",
-        "frecuencia_j_30D_empleador", "frecuencia_f_30D_empleador", "frecuencia_m_30D_empleador",
+        "recencia_trabajador", "frecuencia_trabajador_60d", "frecuencia_trabajador_40d",
+        "frecuencia_trabajador_20d", "reposo_trabajador_60d", "reposo_trabajador_40d",
+        "reposo_trabajador_20d", "n_medicos_distintos_xtrabajador_60d",
+        "n_empleadores_distintos_xtrabajador_60d", "desviacion_reposo_trabajador_60d",
+        "recencia_medico", "frecuencia_medico_30d", "frecuencia_medico_15d",
+        "frecuencia_medico_7d", "reposo_medico_30d", "reposo_medico_15d",
+        "reposo_medico_7d", "licencias_20_min", "licencias_40_min", "licencias_60_min",
+        "max_licencias_dia_30d", "frecuencia_j_30d_medico", "frecuencia_f_30d_medico",
+        "frecuencia_m_30d_medico", "max_rest_days_30d", "diferencia_dias",
+        "licencias_despues_umbral", "n_trabajadores_distintos_xmedico_60d",
+        "n_empleadores_distintos_xmedico_60d", "hhi_empleadores_por_medico_60d",
+        "n_remotas_30d", "n_presenciales_30d", "recencia_empleador",
+        "frecuencia_empleador_60d", "frecuencia_empleador_40d", "frecuencia_empleador_20d",
+        "reposo_empleador_60d", "reposo_empleador_40d", "reposo_empleador_20d",
+        "n_trabajadores_distintos_xempleador_60d", "n_medicos_distintos_xempleador_60d",
+        "frecuencia_j_30d_empleador", "frecuencia_f_30d_empleador", "frecuencia_m_30d_empleador",
         "historial_trabajador_medico", "historial_empleador_medico", "ponderado_medico_trabajador",
         "anomaly_score", "propensity_score_iforest"
     ]
-    
 
-    results.columns = results.columns.str.lower()
-    
-    expected_columns = [col.lower() for col in expected_columns_original]
-    
-    update_columns = [col for col in expected_columns if col != "id_lic"]
-    set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
-    
-    upsert_query = f"""
-        INSERT INTO ml.anomalias ({", ".join(expected_columns)})
-        VALUES ({", ".join(f":{col}" for col in expected_columns)})
-        ON CONFLICT (id_lic) DO UPDATE
-        SET {set_clause}
-    """
-    
+    set_clause = ", ".join([f"{col} = EXCLUDED.{col}" for col in columnas])
+
+    upsert_query = text(f"""
+        INSERT INTO ml.anomalias (
+            id_lic, {", ".join(columnas)}
+        ) VALUES (
+            :id_lic, {", ".join([f":{col}" for col in columnas])}
+        )
+        ON CONFLICT (id_lic) DO UPDATE SET
+            {set_clause}
+    """)
+
     insertados = 0
-    fallidos = 0
-    for _, row in results.iterrows():
-        params = {col: row.get(col, None) for col in expected_columns}
-        try:
-            session.execute(text(upsert_query), params)
-            insertados += 1
-            anomalias_logger.debug(f"Guardando id_lic: {row.get('id_lic')} en anomalias")
-            if insertados % 100 == 0:
-                session.commit()
-                anomalias_logger.debug(f"Commit intermedio: {insertados} registros procesados")
-        except Exception as e:
-            fallidos += 1
-            anomalias_logger.error(f"Error insertando id_lic {row.get('id_lic')}: {e}")
-            if "server closed the connection" in str(e) or "Connection refused" in str(e):
-                anomalias_logger.warning("Conexión perdida, reintentando sesión...")
-                session.rollback()
-            continue
-    
+    errores = 0
+
     try:
+        for idx, row in results.iterrows():
+            id_lic = row.get('id_lic')
+
+            if pd.isna(id_lic):
+                anomalias_logger.warning(f"Fila {idx} sin id_lic → omitida")
+                continue
+
+            params = {"id_lic": id_lic}
+            params.update({col: row.get(col, None) for col in columnas})
+
+            try:
+                result = session.execute(upsert_query, params)
+
+                if result.rowcount > 0:
+                    insertados += 1
+                    anomalias_logger.info(f"UPSERT OK → id_lic: {id_lic}")
+                else:
+                    anomalias_logger.debug(f"Sin cambios → id_lic: {id_lic}")
+
+            except SQLAlchemyError as e:
+                session.rollback()
+                errores += 1
+                anomalias_logger.error(f"ERROR UPSERT id_lic: {id_lic} → {str(e)}")
+                # Seguimos con la siguiente fila
+
         session.commit()
+        anomalias_logger.info(
+            f"UPSERT finalizado → Registros procesados con éxito: {insertados} | Errores: {errores} | Total: {len(results)}"
+        )
+
     except Exception as e:
-        anomalias_logger.error(f"Error en commit final: {e}")
         session.rollback()
-    
-    anomalias_logger.info(f"Insertados: {insertados} | Fallidos: {fallidos} | Total intentados: {len(results)} en ml.anomalias")
+        anomalias_logger.critical(f"Error en upsert_anomalias: {str(e)}")
+        raise
+    finally:
+        session.close()
 
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
