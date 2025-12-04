@@ -457,24 +457,26 @@ def insert_anomalias(session, results: pd.DataFrame) -> None:
         "anomaly_score", "propensity_score_iforest"
     ]
     
+    # Agregar columnas faltantes, copiando valores desde columnas equivalentes ignorando mayúsculas
+    lower_map = {col.lower(): col for col in results.columns}
+
     for col in expected_columns_original:
-        if col not in results.columns:
-            results[col] = None
-    
-    rename_dict = {}
-    for col in results.columns:
-        # Convertir a lower, y si termina con 'D' (mayúscula), cambiar a 'd'
-        new_col = col.lower()
-        if new_col.endswith('d'):  
-            pass  
+        col_lower = col.lower()
+
+        if col_lower in lower_map:
+            # Existe una versión equivalente → copiar valores
+            real_col = lower_map[col_lower]
+            results[col_lower] = results[real_col]
         else:
-            new_col = new_col.replace('D', 'd')  # Reemplaza 'D' por 'd' (ya que lower lo hace 'd' minúscula)
-        rename_dict[col] = new_col
+            # No existe ninguna versión → asignar None
+            results[col_lower] = None
+
+    results.columns = results.columns.str.lower()
     
-    results = results.rename(columns=rename_dict)
+    # Ahora expected_columns también debe estar en minúsculas
+    expected_columns = [col.lower() for col in expected_columns_original]
     
-    expected_columns = list(results.columns)
-    
+    # Crear el upsert query
     update_columns = [col for col in expected_columns if col != "id_lic"]
     set_clause = ", ".join(f"{col} = EXCLUDED.{col}" for col in update_columns)
     
@@ -511,6 +513,7 @@ def insert_anomalias(session, results: pd.DataFrame) -> None:
         session.rollback()
     
     anomalias_logger.info(f"Insertados: {insertados} | Fallidos: {fallidos} | Total intentados: {len(results)} en ml.anomalias")
+
 def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     """
     Ejecuta la consulta de licencias con filtros opcionales, incluyendo columnas de ml.anomalias no redundantes.
