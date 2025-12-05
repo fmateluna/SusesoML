@@ -81,7 +81,7 @@ def propensy_score_background(fecha_inicio: str, fecha_fin: str, task_id: str):
 
         task_status_map[task_id] = {"status": "processing", "details": "Ejecutando procesos adicionales."}
         logger.info(f"Tarea {task_id}: Llamando a orquestar_calculos_adicionales.")
-        orquestar_calculos_adicionales(fecha_fin, task_id)
+        orquestar_calculos_adicionales(fecha_inicio, fecha_fin, task_id)
 
         task_status_map[task_id] = {"status": "completed", "details": "Todos los procesos finalizaron correctamente."}
         logger.info(f"Tarea {task_id}: Ejecución en segundo plano de propensy_score finalizada correctamente.")
