@@ -118,7 +118,7 @@ def orquestar_calculos_adicionales(fecha_inicio, fecha_fin: str, task_id: str):
 
         task_status_map[task_id] = {"status": "processing", "details": "Paso 4: Procesando el semáforo..."}
         fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
-        procesar_semaforo(año=fecha_dt.year, mes=fecha_dt.month)
+        procesar_semaforo(anio=fecha_dt.year, mes=fecha_dt.month)
         
         logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
 
