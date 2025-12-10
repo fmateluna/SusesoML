@@ -112,19 +112,25 @@ def orquestar_calculos_adicionales(fecha_inicio, fecha_fin: str, task_id: str):
             calcular_anomalias(df_umbrales)
         else:
             umbrales_logger.warning(f"Tarea {task_id}: No se generaron datos de umbrales. Se omiten los pasos de guardado de Umbrales y cálculo de Anomalías.")
-            # Actualizamos el estado para que el usuario sepa que se omitieron pasos
+            
             task_status_map[task_id] = {"status": "processing", "details": "Paso 3: Omitiendo Umbrales y Anomalías por falta de datos."}
 
 
         task_status_map[task_id] = {"status": "processing", "details": "Paso 4: Procesando el semáforo..."}
-        fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
-        procesar_semaforo(df_calculos=df_umbrales,anio=fecha_dt.year, mes=fecha_dt.month)
+        fecha_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
+
+        req_model = SemaforoRequest(
+            mes=fecha_dt.month,
+            anio=fecha_dt.year
+        )
+        df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
+        procesar_semaforo(df_calculos=df_calculos,anio=fecha_dt.year, mes=fecha_dt.month)
         
         umbrales_logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
 
     except Exception as e:
         umbrales_logger.error(f"Error durante los procesos adicionales para la tarea {task_id}: {e}", exc_info=True)
-        raise e # Relanzamos la excepción para que sea capturada en el nivel superior.
+        raise e 
 
 def masivo(fecha_inicio: str, fecha_fin: str):
     from_db = query_masivo(fecha_inicio, fecha_fin)
