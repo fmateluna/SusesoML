@@ -95,7 +95,7 @@ def orquestar_calculos_adicionales(fecha_inicio, fecha_fin: str, task_id: str):
     Ejecuta la secuencia de cálculos post-score: Umbrales, Anomalías y Semáforo, actualizando el estado de la tarea.
     """
     umbrales_logger = logging.getLogger('umbrales_logger') 
-    logger.info(f"Tarea {task_id}: Inicia la orquestación de cálculos adicionales.")
+    umbrales_logger.info(f"Tarea {task_id}: Inicia la orquestación de cálculos adicionales.")
     try:
         task_status_map[task_id] = {"status": "processing", "details": "Paso 1: Generando datos de umbrales..."}
         dias_umbral = 60
@@ -120,7 +120,7 @@ def orquestar_calculos_adicionales(fecha_inicio, fecha_fin: str, task_id: str):
         fecha_dt = datetime.strptime(fecha_fin, "%Y-%m-%d")
         procesar_semaforo(df_calculos=df_umbrales,anio=fecha_dt.year, mes=fecha_dt.month)
         
-        logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
+        umbrales_logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
 
     except Exception as e:
         umbrales_logger.error(f"Error durante los procesos adicionales para la tarea {task_id}: {e}", exc_info=True)
