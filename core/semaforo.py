@@ -57,7 +57,7 @@ class SemaforoWatson:
       """
       Ejecuta el cálculo de semáforos por médico.
       """
-      
+      semaforo_logger = logging.getLogger('semaforo_logger')
       # Convierte las columnas a numérico, forzando errores a NaN
       dataframe["rn1"] = pd.to_numeric(dataframe["rn1"], errors="coerce").fillna(0).astype(int)
       dataframe["rn2"] = pd.to_numeric(dataframe["rn2"], errors="coerce").fillna(0).astype(int)
@@ -201,6 +201,7 @@ def procesar_semaforo(
     """
     Procesa un DataFrame con datos médicos y devuelve los resultados de SemaforoWatson para todas las filas.
     """
+    semaforo_logger = logging.getLogger('semaforo_logger')
     parametros_str = f"mes={mes}, anio={anio}, sort_by='{sort_values_by}', umbral_corte={umbral_decorte}, rn_limite={rn_ln_mes}, umbral_anomalias={umbral_deanomalias}"
     semaforo_logger.info(f"Inicia procesamiento de semáforo con {len(df_calculos)} registros. Parámetros: {parametros_str}.")
     
