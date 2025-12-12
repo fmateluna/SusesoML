@@ -174,16 +174,24 @@ def query_licencias(request: ConsultaLicenciaRequest):
     return task_manager.check_or_start_task(request, consulta_licencia_from_rest)
 
 
-@router.post("/semaforo")
-def procesar_semaforo_endpoint(request: SemaforoRequest):
-    rango = f"{request.anio}-{request.mes:02d}"
-    resultado = consulta_semaforo(rango, request.rut_medico)
-    if len(resultado)>0:
-        return resultado
+from fastapi import BackgroundTasks
 
-    def semaforo_func(req_model):
+@router.post("/semaforo")
+async def procesar_semaforo_endpoint(
+    request: SemaforoRequest,
+    background_tasks: BackgroundTasks
+):
+    rango = f"{request.anio}-{request.mes:02d}"
+    resultado_cacheado = consulta_semaforo(rango, request.rut_medico)
+
+    if len(resultado_cacheado) > 0:
+        respuesta = resultado_cacheado
+    else:
+        respuesta = []  
+
+    def tarea_recalculo(req_model: SemaforoRequest):
         df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
-        resultado = procesar_semaforo(
+        procesar_semaforo(
             df_calculos=df_calculos,
             mes=req_model.mes,
             anio=req_model.anio,
@@ -192,10 +200,9 @@ def procesar_semaforo_endpoint(request: SemaforoRequest):
             rn_ln_mes=req_model.rn_ln_mes,
             umbral_deanomalias=req_model.umbral_deanomalias
         )
-        return resultado
-    
-    resultado = check_or_start_task(request, semaforo_func)
-    return resultado
+
+    background_tasks.add_task(tarea_recalculo, request)
+    return respuesta
      
 @router.post("/licencias/reclamos")
 def query_reclamos(request: ReclamosRequest):
