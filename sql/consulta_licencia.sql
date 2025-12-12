@@ -127,17 +127,15 @@ WHERE
     AND (:folio IS NULL OR l.folio = :folio)
     AND (:cod_diagnostico IS NULL OR lde.cod_diagnostico = :cod_diagnostico)
     AND (:especialidad_medico IS NULL OR lde.especialidad_medico = :especialidad_medico)
-
     AND (
-        (:fecha_unica IS NOT NULL AND l.fecha_emision::date = :fecha_unica)
+        (:fecha_unica IS NOT NULL AND l.fecha_emision = :fecha_unica)
         OR (
             :fecha_unica IS NULL
             AND :fecha_inicio IS NOT NULL
             AND :fecha_fin IS NOT NULL
-            AND l.fecha_emision::date BETWEEN :fecha_inicio::date AND :fecha_fin::date
+            AND l.fecha_emision BETWEEN :fecha_inicio AND :fecha_fin
         )
     )
-
     AND u.score_frecuencia_medico_7d IS NOT NULL
     AND u.score_frecuencia_medico_15d IS NOT NULL
     AND u.score_frecuencia_medico_30d IS NOT NULL
