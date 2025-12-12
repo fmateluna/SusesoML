@@ -127,10 +127,17 @@ WHERE
     AND (:folio IS NULL OR l.folio = :folio)
     AND (:cod_diagnostico IS NULL OR lde.cod_diagnostico = :cod_diagnostico)
     AND (:especialidad_medico IS NULL OR lde.especialidad_medico = :especialidad_medico)
+
     AND (
-        (:fecha_unica IS NULL OR l.fecha_emision::date = :fecha_unica)
-        OR (:fecha_inicio IS NOT NULL AND :fecha_fin IS NOT NULL AND l.fecha_emision BETWEEN :fecha_inicio AND :fecha_fin)
+        (:fecha_unica IS NOT NULL AND l.fecha_emision::date = :fecha_unica)
+        OR (
+            :fecha_unica IS NULL
+            AND :fecha_inicio IS NOT NULL
+            AND :fecha_fin IS NOT NULL
+            AND l.fecha_emision::date BETWEEN :fecha_inicio::date AND :fecha_fin::date
+        )
     )
+
     AND u.score_frecuencia_medico_7d IS NOT NULL
     AND u.score_frecuencia_medico_15d IS NOT NULL
     AND u.score_frecuencia_medico_30d IS NOT NULL
@@ -140,4 +147,4 @@ WHERE
     AND u.score_n_remotas_30d IS NOT NULL
     AND u.score_n_presenciales_30d IS NOT NULL
     AND a.anomaly_score IS NOT NULL
-    AND a.propensity_score_iforest IS NOT NULL
+    AND a.propensity_score_iforest IS NOT NULL;
