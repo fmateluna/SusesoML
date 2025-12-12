@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import date
+from datetime import date, datetime
 from multiprocessing import Process, Queue
 import asyncio
 import multiprocessing
@@ -28,11 +28,42 @@ from core.semaforo import procesar_semaforo
 from core.services import  consulta_semaforo, get_umbral_status, manage_umbral_status
 from models.consultas import ConsultaLicenciaRequest, MasivoRequest, ReclamosRequest, SemaforoRequest, UmbralRequest
 from core.utils.task_manager import task_manager
-
+from threading import Thread, Lock
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+cache_lock = Lock()
+long_query_cache = {}
+
+
+def generate_request_hash(request_model) -> str:
+    # Convierte el Pydantic model a dict y luego genera hash
+    return hashlib.md5(str(request_model.dict()).encode()).hexdigest()
+
+
+def async_query_task(request_hash: str, request_model, func):
+    try:
+        with cache_lock:
+            long_query_cache[request_hash] = {"status": "processing", "updated_at": datetime.now()}
+        result = func(request_model)
+        with cache_lock:
+            result_json = result.to_dict(orient="records")
+            long_query_cache[request_hash] = {"status": "finishi", "updated_at": datetime.now(), "data":result_json}
+
+    except Exception as e:
+        with cache_lock:
+            long_query_cache[request_hash] = {"status": "error", "message": str(e), "updated_at": datetime.now()}
+
+
+def check_or_start_task(request_model, func):
+    request_hash = generate_request_hash(request_model)
+    with cache_lock:
+        if request_hash in long_query_cache:
+            return long_query_cache[request_hash]
+    Thread(target=async_query_task, args=(request_hash, request_model, func)).start()
+    return {"status": "processing", "message": "working."}
 
 @router.post("/score")
 def execute_score(request: MasivoRequest, background_tasks: BackgroundTasks):
@@ -143,28 +174,15 @@ def query_licencias(request: ConsultaLicenciaRequest):
     return task_manager.check_or_start_task(request, consulta_licencia_from_rest)
 
 
-from core.utils.custom_logger import get_custom_logger
-
-semaforo_logger = get_custom_logger('semaforo_logger', 'semaforo.log')
-
-
-
 @router.post("/semaforo")
 def procesar_semaforo_endpoint(request: SemaforoRequest):
-    semaforo_logger.info(f"Recibida petición para procesar semáforo: mes={request.mes}, anio={request.anio}")
     rango = f"{request.anio}-{request.mes:02d}"
-    
-    # Primero, intenta obtener un resultado pre-calculado (cache).
     resultado = consulta_semaforo(rango, request.rut_medico)
-    if len(resultado) > 0:
-        semaforo_logger.info(f"Se encontraron {resultado} resultados pre-calculados para el rango '{rango}'. Se devuelven desde la base de datos.")
+    if len(resultado)>0:
         return resultado
 
-    # Si no hay resultados, se inicia un nuevo cálculo en segundo plano.
-    semaforo_logger.info(f"No se encontraron resultados pre-calculados. Se inicia una nueva tarea de cálculo para el rango '{rango}'.")
     def semaforo_func(req_model):
         df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
-        # La función 'procesar_semaforo' ya tiene sus propios logs de inicio y fin.
         resultado = procesar_semaforo(
             df_calculos=df_calculos,
             mes=req_model.mes,
@@ -176,7 +194,7 @@ def procesar_semaforo_endpoint(request: SemaforoRequest):
         )
         return resultado
     
-    resultado = task_manager.check_or_start_task(request, semaforo_func)
+    resultado = check_or_start_task(request, semaforo_func)
     return resultado
      
 @router.post("/licencias/reclamos")
@@ -185,5 +203,6 @@ def query_reclamos(request: ReclamosRequest):
 
 @router.get("/semaforo/{rango_path}")
 def query_semaforo(rango_path : str):
+    semaforo_logger = logging.getLogger('semaforo_logger')   
     semaforo_logger.info(f"Consulta semaforo en rest get rango[{rango_path}]")
     return consulta_rest_semaforo(rango=rango_path,rut_medico=None)

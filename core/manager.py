@@ -264,10 +264,11 @@ def consulta_licencias_para_semaforo_from_rest(request: SemaforoRequest):
     semaforo_logger = logging.getLogger('semaforo_logger')    
     fecha_inicio, fecha_fin = None, None
     semaforo_logger.info(f"rango {request.anio}/{request.mes}: consulta licencias para semaforos data.")
-    if request.mes and request.anio:
-        fecha_inicio = date(request.anio, request.mes, 1).isoformat()
-        last_day = calendar.monthrange(request.anio, request.mes)[1]
-        fecha_fin = date(request.anio, request.mes, last_day).isoformat()
+
+    fecha_inicio = date(request.anio, request.mes, 1).isoformat()
+    last_day = calendar.monthrange(request.anio, request.mes)[1]
+    fecha_fin = date(request.anio, request.mes, last_day).isoformat()
+    semaforo_logger.info(f"Parametros fecha_inicio {fecha_inicio}/ last_day {last_day}: fecha_fin {fecha_fin} para where.")
 
     where_query = ConsultaLicenciaRequest(
         fecha_inicio=fecha_inicio,
@@ -275,7 +276,7 @@ def consulta_licencias_para_semaforo_from_rest(request: SemaforoRequest):
         rut_medico=request.rut_medico,
         content_type=request.content_type
     )
-
+    semaforo_logger.info(f"Se crea query con condiciones {where_query}.")
     df_calculos = consulta_licencia(where_query)
     return df_calculos
 
