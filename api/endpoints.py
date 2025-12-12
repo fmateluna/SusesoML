@@ -173,37 +173,6 @@ async def get_umbral_status_endpoint(request_hash: str):
 def query_licencias(request: ConsultaLicenciaRequest):
     return task_manager.check_or_start_task(request, consulta_licencia_from_rest)
 
-
-from fastapi import BackgroundTasks
-
-@router.post("/semaforo")
-async def procesar_semaforo_endpoint(
-    request: SemaforoRequest,
-    background_tasks: BackgroundTasks
-):
-    rango = f"{request.anio}-{request.mes:02d}"
-    resultado_cacheado = consulta_semaforo(rango, request.rut_medico)
-
-    if len(resultado_cacheado) > 0:
-        respuesta = resultado_cacheado
-    else:
-        respuesta = []  
-
-    def tarea_recalculo(req_model: SemaforoRequest):
-        df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
-        procesar_semaforo(
-            df_calculos=df_calculos,
-            mes=req_model.mes,
-            anio=req_model.anio,
-            sort_values_by=req_model.sort_values_by,
-            umbral_decorte=req_model.umbral_decorte,
-            rn_ln_mes=req_model.rn_ln_mes,
-            umbral_deanomalias=req_model.umbral_deanomalias
-        )
-
-    background_tasks.add_task(tarea_recalculo, request)
-    return respuesta
-     
 @router.post("/licencias/reclamos")
 def query_reclamos(request: ReclamosRequest):
     return procesa_reclamos(request)
@@ -213,3 +182,41 @@ def query_semaforo(rango_path : str):
     semaforo_logger = logging.getLogger('semaforo_logger')   
     semaforo_logger.info(f"Consulta semaforo en rest get rango[{rango_path}]")
     return consulta_rest_semaforo(rango=rango_path,rut_medico=None)
+
+from threading import Thread
+
+@router.post("/semaforo")
+def procesar_semaforo_endpoint(request: SemaforoRequest):
+    rango = f"{request.anio}-{request.mes:02d}"
+    
+    resultado_cacheado = consulta_semaforo(rango, request.rut_medico)
+
+    def semaforo_func(req_model):
+        df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
+        return procesar_semaforo(
+            df_calculos=df_calculos,
+            mes=req_model.mes,
+            anio=req_model.anio,
+            sort_values_by=req_model.sort_values_by,
+            umbral_decorte=req_model.umbral_decorte,
+            rn_ln_mes=req_model.rn_ln_mes,
+            umbral_deanomalias=req_model.umbral_deanomalias
+        )
+
+    request_hash = generate_request_hash(request)
+
+    with cache_lock:
+        if request_hash not in long_query_cache:
+            Thread(
+                target=check_or_start_task,
+                args=(request, semaforo_func),
+                daemon=True
+            ).start()
+
+    if len(resultado_cacheado) > 0:
+        return resultado_cacheado
+    else:
+        return {
+            "status": "processing",
+            "message": "Calculando semaforo."
+        }
