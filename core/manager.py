@@ -278,6 +278,7 @@ def consulta_licencias_para_semaforo_from_rest(request: SemaforoRequest):
     )
     semaforo_logger.info(f"Se crea query con condiciones {where_query}.")
     df_calculos = consulta_licencia(where_query)
+    semaforo_logger.info(f"Retorna  {df_calculos.size} registros")
     return df_calculos
 
 def consulta_rest_semaforo(rango: str, rut_medico: str):
