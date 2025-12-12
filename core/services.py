@@ -518,6 +518,7 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
     fecha_inicio = where_query.fecha_inicio
     fecha_fin = where_query.fecha_fin
     if (fecha_inicio and not fecha_fin) or (fecha_fin and not fecha_inicio):
+        logger.error(f"Debe especificar tanto fecha_inicio como fecha_fin o ninguna {fecha_inicio}/{fecha_fin}")
         raise ValueError("Debe especificar tanto fecha_inicio como fecha_fin o ninguna")
     if fecha_inicio and fecha_fin:
         fecha_inicio, fecha_fin = parse_dates(where_query.fecha_inicio, where_query.fecha_fin)
@@ -534,8 +535,10 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
         "especialidad_medico": where_query.especialidad_medico,
     }
     try:
+        logger.debug(f"Parametros consulta {query_params}")
         result = execute_query(query_path, query_params)
         if not result:
+            logger.debug(f"NO EXISTEN RESULTADO!! para {query_params}")
             return pd.DataFrame()
         df = pd.DataFrame(result, columns=[
             "id_lic", "operador", "ccaf", "entidad_pagadora", "folio",
@@ -584,6 +587,8 @@ def consulta_licencia(where_query: ConsultaLicenciaRequest) -> pd.DataFrame:
             "anomalias_ponderado_medico_trabajador", "anomalias_anomaly_score",
             "anomalias_propensity_score_iforest", "anomalias_fecha_creacion"
         ])
+
+        logger.debug(f"consulta retonra {df.size}")
         return df
     except pd.errors.ParserError as e:
         logger.error(f"Error en el parseo del DataFrame: columnas no coinciden: {str(e)}")
