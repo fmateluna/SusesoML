@@ -118,13 +118,18 @@ def orquestar_calculos_adicionales(fecha_inicio, fecha_fin: str, task_id: str):
 
         task_status_map[task_id] = {"status": "processing", "details": "Paso 4: Procesando el semáforo..."}
         fecha_dt = datetime.strptime(fecha_inicio, "%Y-%m-%d")
-
+        semaforo_logger = logging.getLogger('semaforo_logger')
         req_model = SemaforoRequest(
             mes=fecha_dt.month,
             anio=fecha_dt.year
         )
-        df_calculos = consulta_licencias_para_semaforo_from_rest(req_model)
-        procesar_semaforo(df_calculos=df_calculos,anio=fecha_dt.year, mes=fecha_dt.month)
+        semaforo_logger.info(f"Tarea {task_id}: Calculando semaforo. {req_model}")
+        df_calculos_semaforo = consulta_licencias_para_semaforo_from_rest(req_model)
+        semaforo_logger.info(f"Tarea {task_id}: registros para semaforo. {req_model} : {df_calculos_semaforo.size}")
+        if df_calculos_semaforo.empty:
+            semaforo_logger.info(f"Tarea {task_id}: registros para semaforo. No hay data para procesar licencias")
+        else:
+            procesar_semaforo(df_calculos=df_calculos_semaforo,anio=fecha_dt.year, mes=fecha_dt.month)
         
         umbrales_logger.info(f"Tarea {task_id}: Procesos adicionales finalizados correctamente.")
 
