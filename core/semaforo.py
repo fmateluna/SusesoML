@@ -195,7 +195,7 @@ def procesar_semaforo(
     anio: int = 2025,
     sort_values_by: str = "smf_rn",
     umbral_decorte: float = 0.6,
-    rn_ln_mes: int = 2,
+    rn_ln_mes: int = 400,
     umbral_deanomalias: float = 0.5
 ) -> pd.DataFrame:
     """

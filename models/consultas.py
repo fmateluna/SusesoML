@@ -23,7 +23,7 @@ class SemaforoRequest(BaseModel):
     anio: int
     sort_values_by: Optional[str] = "smf_rn"
     umbral_decorte: Optional[float] = 0.6
-    rn_ln_mes: Optional[int] = 2
+    rn_ln_mes: Optional[int] = 400
     umbral_deanomalias: Optional[float] = 0.5
     rut_medico: Optional[str] = None
     content_type: Optional[str] = "csv"
