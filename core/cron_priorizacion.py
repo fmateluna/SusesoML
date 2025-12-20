@@ -30,7 +30,7 @@ def ejecutar_proceso_priorizacion():
     try:
         now = datetime.now()
         #cron: Se crea un request para el mes y año actual.
-        request = ReclamosRequest(anio=now.year, mes=now.month)
+        request = ReclamosRequest(anio=now.year, mes=11)
         
         logger.info(f"Iniciando proceso de priorización para {now.year}-{now.month}")
         

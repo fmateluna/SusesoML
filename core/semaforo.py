@@ -82,7 +82,13 @@ class SemaforoWatson:
       dataframe["propensity_score_umbrales"] = dataframe[score_columns].max(axis=1)        
 
       dataframe["propensity_score_iforest"] = dataframe["anomalias_propensity_score_iforest"]
+      # filtro para la consideracion de solo una alerta por licencia
+      # Si propensity_score_rn es mayor que 0, entonces poner propensity_score_umbrales y propensity_score_iforest a 0
+      dataframe.loc[dataframe['propensity_score_rn'] > 0, ['propensity_score_umbrales', 'propensity_score_iforest']] = 0
 
+      # Si propensity_score_rn es mayor que 0, entonces poner propensity_score_iforest a 0
+      dataframe.loc[dataframe['propensity_score_umbrales'] > 0, 'propensity_score_iforest'] = 0
+      
       sort_by = sort_values_by if sort_values_by is not None else self.sort_values_by
       u_corte = umbral_decorte if umbral_decorte is not None else self.umbral_decorte
       rn_lim = rn_ln_mes if rn_ln_mes is not None else self.rn_ln_mes

@@ -74,7 +74,7 @@
             "name": "CRON_PRIORIZACION",
             "type": "python",
             "request": "launch",
-            "program": "${workspaceFolder}/cron_priorizacion.py",
+            "program": "${workspaceFolder}/core/cron_priorizacion.py",
             "console": "integratedTerminal",
             "args": [
                 "run"
