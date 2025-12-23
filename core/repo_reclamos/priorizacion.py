@@ -9,6 +9,8 @@ import numpy as np
 import pandas as pd
 
 import logging
+
+from core.services import consulta_semaforo
 reclamos_logger = logging.getLogger('reclamos_logger')
 
 
@@ -134,7 +136,10 @@ class PriorizacionProcessor:
         df_medicos = pd.DataFrame({"rut_medico": df["rut_medico"].dropna().unique()})
         pieces = []
         for m in meses:
-            mdf = self.semaforoWatson(df, mes=m, anio=anio, show_results=None)
+            #Esto lo puedo sacar de la tabla semaforo
+            # mdf = self.semaforoWatson(df, mes=m, anio=anio, show_results=None)
+            resultados = consulta_semaforo(rango=f"{anio}-{m:02d}", rut_medico=None)
+            mdf = pd.DataFrame(resultados)
             prefix = f"m{m}_"
             mdf = mdf.add_prefix(prefix)
             # Corrige el rename para que coincida con el prefijo completo
@@ -212,10 +217,13 @@ class PriorizacionProcessor:
         df_base: pd.DataFrame,
         denuncias_previas_relato: pd.DataFrame
     ) -> pd.DataFrame:
+        mes_actual =  pd.Timestamp.now().month
+        anio_actual = pd.Timestamp.now().year
+
         smf = self.resumenMensualMedicos(
             df_base,
-            meses=self.smf_cfg.meses,
-            anio=None
+            meses=[mes_actual],
+            anio=anio_actual
         )
         df = self.unir_denuncias_con_semaforo(denuncias_previas_relato, smf)
 

@@ -98,8 +98,7 @@ class AdmisibilidadProcessor:
         """
         logger.info("Loading from DATABASE df_to_semaforo...")        
         # Se pasa el rut_medico a la consulta de semaforo
-        # Se pasa el rut_medico a la consulta de semaforo
-        df = self.consulta_base_semaforo(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
+        df_semaforo = self.consulta_base_semaforo(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
         logger.info("Loading denuncias (PAE) from DATABASE...")
         denuncias = self.consulta_base_denuncias_pae(self.cfg.mes_a_revisar, self.cfg.anio)
@@ -115,7 +114,7 @@ class AdmisibilidadProcessor:
         # Se reemplaza la lectura del CSV por una consulta a la base de datos
         lme = self.consulta_base_lme(self.cfg.mes_a_revisar, self.cfg.anio, self.cfg.rut_medico)
 
-        return df, denuncias, relatos, detalle, lme
+        return df_semaforo, denuncias, relatos, detalle, lme
     
     # Se crea esta funcion para consultar el detalle de uclm
     def consulta_base_detalle_uclm(self, mes: int, anio: int) -> pd.DataFrame:

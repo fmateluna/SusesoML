@@ -119,16 +119,16 @@ def procesa_reclamos(request: ReclamosRequest) :
     # ---------- Load ----------
     reclamos_logger.info(f"{periodo_str} Inicia la carga de datos desde la base de datos.")
     adm = AdmisibilidadProcessor(adm_cfg)
-    df, denuncias, relatos, detalle, lme = adm.load_all()
-    reclamos_logger.info(f"{periodo_str} Carga de datos finalizada. Registros cargados: df_semaforo={len(df)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
+    df_semaforo, denuncias, relatos, detalle, lme = adm.load_all()
+    reclamos_logger.info(f"{periodo_str} Carga de datos finalizada. Registros cargados: df_semaforo={len(df_semaforo)}, denuncias={len(denuncias)}, relatos={len(relatos)}, detalle_uclm={len(detalle)}, lme={len(lme)}.")
 
     # ---------- Base df_to_semaforo post-processing from notebook ----------
     for col in ["propensity_score_rn", "propensity_score_umbrales", "propensity_score_iforest"]:
-        if col in df.columns:
-            df[col] = df[col].fillna(0).astype(int)
+        if col in df_semaforo.columns:
+            df_semaforo[col] = df_semaforo[col].fillna(0).astype(int)
     # Dates
-    if "fecha_emision" in df.columns:
-        df["fecha_emision"] = pd.to_datetime(df["fecha_emision"], errors="coerce")
+    if "fecha_emision" in df_semaforo.columns:
+        df_semaforo["fecha_emision"] = pd.to_datetime(df_semaforo["fecha_emision"], errors="coerce")
 
     # ---------- Denuncias preprocessing & month filter ----------
     denuncias_prep = adm.preprocess_denuncias(denuncias)
@@ -153,7 +153,7 @@ def procesa_reclamos(request: ReclamosRequest) :
     # ---------- Priorización ----------
     reclamos_logger.info(f"{periodo_str} Inicia la etapa de priorización.")
     pr = PriorizacionProcessor(smf_cfg, prio_cfg)
-    denuncias_semaforo = pr.run_prioritization(df, denuncias_previas_relato)
+    denuncias_semaforo = pr.run_prioritization(df_semaforo, denuncias_previas_relato)
     reclamos_logger.info(f"{periodo_str} Priorización finalizada. Se generaron {len(denuncias_semaforo)} resultados.")
 
     # ---------- Output ----------
